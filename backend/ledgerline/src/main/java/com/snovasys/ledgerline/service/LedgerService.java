@@ -62,13 +62,13 @@ public class LedgerService {
 
         long amount = request.amount();
 
-        // 1. Update balances
+        // 1. Update balances using Math.exact to prevent overflow
         // System clearing account decreases by amount (allowed to be negative)
-        systemAcc.setBalance(systemAcc.getBalance() - amount);
+        systemAcc.setBalance(Math.subtractExact(systemAcc.getBalance(), amount));
         accountRepository.save(systemAcc);
 
         // Target user account increases by amount
-        targetAcc.setBalance(targetAcc.getBalance() + amount);
+        targetAcc.setBalance(Math.addExact(targetAcc.getBalance(), amount));
         accountRepository.save(targetAcc);
 
         // 2. Record Transaction
@@ -144,11 +144,11 @@ public class LedgerService {
             );
         }
 
-        // 1. Update balances
-        sourceAcc.setBalance(sourceAcc.getBalance() - amount);
+        // 1. Update balances using Math.exact to prevent overflow
+        sourceAcc.setBalance(Math.subtractExact(sourceAcc.getBalance(), amount));
         accountRepository.save(sourceAcc);
 
-        systemAcc.setBalance(systemAcc.getBalance() + amount);
+        systemAcc.setBalance(Math.addExact(systemAcc.getBalance(), amount));
         accountRepository.save(systemAcc);
 
         // 2. Record Transaction
@@ -229,11 +229,18 @@ public class LedgerService {
             );
         }
 
-        // 1. Update balances
-        sourceAcc.setBalance(sourceAcc.getBalance() - amount);
+        // Currency check
+        if (!sourceAcc.getCurrency().equalsIgnoreCase(destAcc.getCurrency())) {
+            throw new InvalidRequestException(
+                    "Cross-currency transfer is not supported: source=" + sourceAcc.getCurrency() + ", destination=" + destAcc.getCurrency()
+            );
+        }
+
+        // 1. Update balances using Math.exact to prevent overflow
+        sourceAcc.setBalance(Math.subtractExact(sourceAcc.getBalance(), amount));
         accountRepository.save(sourceAcc);
 
-        destAcc.setBalance(destAcc.getBalance() + amount);
+        destAcc.setBalance(Math.addExact(destAcc.getBalance(), amount));
         accountRepository.save(destAcc);
 
         // 2. Record Transaction
@@ -304,6 +311,9 @@ public class LedgerService {
     private void validateRoleCanMoveMoney(UserPrincipal currentUser) {
         if (currentUser.getRole() == Role.AUDITOR) {
             throw new AccessDeniedException("Auditor accounts have read-only access and are prohibited from moving money");
+        }
+        if (currentUser.getRole() == Role.ADMIN) {
+            throw new AccessDeniedException("Administrative accounts are restricted to lifecycle management and are strictly prohibited from moving money");
         }
     }
 

@@ -106,12 +106,20 @@ public class DemoDataSeeder implements CommandLineRunner {
                 false
         ));
 
-        // 5. Seed initial balances through the double-entry engine
-        UserPrincipal adminPrincipal = new UserPrincipal(
-                admin.getId(),
-                admin.getUsername(),
-                admin.getEmail(),
-                admin.getRole(),
+        // 5. Seed initial balances through the double-entry engine as the respective account holders
+        UserPrincipal alicePrincipal = new UserPrincipal(
+                alice.getId(),
+                alice.getUsername(),
+                alice.getEmail(),
+                alice.getRole(),
+                true
+        );
+
+        UserPrincipal bobPrincipal = new UserPrincipal(
+                bob.getId(),
+                bob.getUsername(),
+                bob.getEmail(),
+                bob.getRole(),
                 true
         );
 
@@ -120,7 +128,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 aliceAcc.getId(),
                 new DepositRequest(10000000L, "Demo Opening Balance (Alice)"),
                 UUID.randomUUID().toString(),
-                adminPrincipal
+                alicePrincipal
         );
 
         // Deposit ₹50,000.00 (5,000,000 paise) into Bob's account
@@ -128,7 +136,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 bobAcc.getId(),
                 new DepositRequest(5000000L, "Demo Opening Balance (Bob)"),
                 UUID.randomUUID().toString(),
-                adminPrincipal
+                bobPrincipal
         );
 
         log.info("Successfully seeded demo users and accounts: admin, auditor, alice (ACC-ALICE-01), bob (ACC-BOB-01).");

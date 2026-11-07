@@ -134,5 +134,30 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 - **Why it was wrong**: Keying by username allows password spraying attacks across many user accounts from a single malicious IP. Furthermore, without a sliding window expiration, a user who failed 4 times across several weeks would be locked out upon a single typo weeks later.
 - **What was done**: Keyed the rate limiter by client IP (extracting the leftmost client IP from `X-Forwarded-For` header safely), added a 10-minute sliding window (`ATTEMPT_WINDOW_SECONDS`) to expire stale attempts, and ensured successful logins clear the IP record.
 
+---
+
+### 17. PostgreSQL TRUNCATE Cannot Use Row-Level Triggers
+- **Problem**: Adding append-only protection against `TRUNCATE` using `FOR EACH ROW` failed with `ERROR: TRUNCATE triggers must be FOR EACH STATEMENT`.
+- **What was assumed / suggested**: Attaching the existing `prevent_tamper()` trigger function (which uses `FOR EACH ROW`) to `TRUNCATE` events on `ledger_entries` and `audit_log`.
+- **Why it was wrong**: In PostgreSQL, the `TRUNCATE` operation is a bulk DDL/statement-level command that does not scan or process individual rows; hence, PostgreSQL specifically forbids `FOR EACH ROW` on `TRUNCATE` triggers.
+- **What was done**: Created Flyway migration `V2__block_truncate.sql` defining a dedicated `prevent_truncate()` trigger function executing `BEFORE TRUNCATE ... FOR EACH STATEMENT` on `ledger_entries` and `audit_log` raising an exception, and explicitly revoked `TRUNCATE` privileges from public.
+
+---
+
+### 18. Admin Role Permitted to Move Money Violating Separation of Duties
+- **Problem**: Admin accounts were previously allowed to execute deposits, withdrawals, and transfers, failing strict banking governance tests where admins manage users/accounts but are prohibited from moving money.
+- **What was assumed / suggested**: Permitting `ADMIN` role to execute deposits or money movements directly.
+- **Why it was wrong**: In financial core systems, administrative staff must never have the authority to create transactions or move balances. Doing so violates separation of duties and regulatory auditing requirements.
+- **What was done**: Restricted deposit, withdrawal, and transfer endpoints in `LedgerService` to `ACCOUNT_HOLDER` principals only, throwing HTTP 403 `ACCESS_DENIED` if an `ADMIN` or `AUDITOR` attempts to move funds. Updated test suites to use account holder principals (`alicePrincipal`, `bobPrincipal`) for initial funding and money transfers.
+
+---
+
+### 19. Currency Check Constraint on Non-INR Accounts in Test Setup
+- **Problem**: Attempting to create an account with currency `USD` to test cross-currency transfer rejection failed with `DataIntegrityViolationException: new row for relation "accounts" violates check constraint "chk_account_currency"`.
+- **What was assumed / suggested**: Saving an account with `currency = "USD"` to test domain validation in `LedgerService`.
+- **Why it was wrong**: The initial database migration `V1__init_schema.sql` has a strict table constraint `CONSTRAINT chk_account_currency CHECK (currency = 'INR')`, preventing non-INR accounts from being persisted at all.
+- **What was done**: Added explicit domain validation in `LedgerService.transfer` checking that source and destination currencies match and are supported, and tested that raw SQL inserts of unsupported currencies are rejected by the database constraint `chk_account_currency`.
+
+
 
 

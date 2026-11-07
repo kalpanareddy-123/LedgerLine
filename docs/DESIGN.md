@@ -80,7 +80,7 @@ Because all threads worldwide acquire locks in the exact same ordinal order, a c
 
 ---
 
-## 4. Distributed Idempotency Protocol
+## 4. Database-Backed Idempotency Protocol
 
 ### The Problem: Network Timeouts & Replay Duplication
 A mobile client submits a ₹5,000 transfer. The server processes the transfer, debits the account, but the cellular network drops before the HTTP 200 response reaches the phone. The client retries. Without idempotency, the user pays twice.
@@ -97,10 +97,12 @@ LedgerLine implements a **3-stage atomic protocol**:
    ON CONFLICT (user_id, key) DO NOTHING RETURNING id;
    ```
    - Exactly one thread inserts the record and receives an `id`.
-   - Any concurrent sibling thread fails the insert due to `UNIQUE (user_id, key)` and waits on an in-memory `CompletableFuture` barrier.
+   - Any concurrent sibling thread fails the insert due to `UNIQUE (user_id, key)`.
+   - **Concurrency Barrier Architecture**: The in-memory `CompletableFuture` barrier is an optimization that works on **one server instance only** to avoid spinning. The real cross-instance guarantee across horizontal server clusters is PostgreSQL's `UNIQUE(user_id, key)` constraint with `ON CONFLICT DO NOTHING`.
 3. **Response Replay**:
    - Same key + identical payload hash: Returns original response with header `Idempotent-Replay: true`.
    - Same key + different payload hash: Rejects immediately with **422 IDEMPOTENCY_PAYLOAD_MISMATCH**.
+   - If the first execution fails due to a domain error (e.g. insufficient funds or validation failure), the key is deleted from `idempotency_keys` so the user can safely retry once funded.
 
 *Code Reference*: [IdempotencyService.java](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/IdempotencyService.java).
 

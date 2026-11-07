@@ -113,5 +113,27 @@ class SchemaAndHealthTest {
             jdbcTemplate.update("DELETE FROM audit_log WHERE id = ?::uuid", logId);
         }).hasMessageContaining("append-only");
     }
+
+    @Test
+    @DisplayName("DB Trigger: TRUNCATE is strictly blocked on ledger_entries (V2 Flyway migration)")
+    void ledgerEntriesTruncateBlocked() {
+        assertThatThrownBy(() -> {
+            jdbcTemplate.execute("TRUNCATE TABLE ledger_entries");
+        }).satisfies(e -> {
+            String msg = e.getMessage().toLowerCase();
+            assertThat(msg).containsAnyOf("append-only", "truncate", "forbidden", "permission denied");
+        });
+    }
+
+    @Test
+    @DisplayName("DB Trigger: TRUNCATE is strictly blocked on audit_log (V2 Flyway migration)")
+    void auditLogTruncateBlocked() {
+        assertThatThrownBy(() -> {
+            jdbcTemplate.execute("TRUNCATE TABLE audit_log");
+        }).satisfies(e -> {
+            String msg = e.getMessage().toLowerCase();
+            assertThat(msg).containsAnyOf("append-only", "truncate", "forbidden", "permission denied");
+        });
+    }
 }
 

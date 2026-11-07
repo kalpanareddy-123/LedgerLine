@@ -58,9 +58,9 @@
 1. **Exact Integer Arithmetic (Paise)**: Money is strictly stored as minor units (`BIGINT` paise in PostgreSQL, `Long` in Java). Floats and doubles are forbidden. Currency is fixed to `"INR"`.
 2. **Double-Entry Invariant**: Every deposit, withdrawal, and transfer produces balanced `DEBIT` and `CREDIT` entries where $\sum \text{entries} = 0$.
 3. **Counterparty Clearing**: Deposits and withdrawals clear against the `SYS_CASH_CLEARING` system account. Non-system accounts are barred from negative balances at both service and database constraint levels.
-4. **Append-Only Immutability**: PostgreSQL database triggers raise an uncatchable exception on any `UPDATE` or `DELETE` attempt on `ledger_entries` or `audit_log`. Corrections must be new reversing entries.
+4. **Append-Only Immutability**: PostgreSQL database triggers raise an uncatchable exception on any `UPDATE`, `DELETE`, or `TRUNCATE` attempt on `ledger_entries` or `audit_log`. Corrections must be new reversing entries.
 5. **Deadlock-Free Pessimistic Locking**: Concurrent multi-account transfers acquire row-level locks (`SELECT ... FOR UPDATE`) in deterministic ascending UUID order.
-6. **Distributed Idempotency**: State-changing endpoints require an `Idempotency-Key` header (UUID). Replaying the identical payload returns the cached result with `Idempotent-Replay: true`. Sending a different payload with the same key returns HTTP 422.
+6. **Database-Backed Idempotency**: State-changing endpoints require an `Idempotency-Key` header (UUID). The real cross-instance guarantee is PostgreSQL's `UNIQUE(user_id, key)` with `ON CONFLICT DO NOTHING`, paired with a single-instance in-memory `CompletableFuture` barrier. Replaying the identical payload returns the cached result with `Idempotent-Replay: true`. Sending a different payload with the same key returns HTTP 422.
 7. **Zero-Leak Authorization**: Account holders receive `404 NOT_FOUND` (not 403) when requesting accounts they do not own, preventing account enumeration probing.
 
 ---
@@ -209,10 +209,10 @@ cd backend/ledgerline
 1. **Double-Entry Conservation**: 50 random concurrent operations across accounts; asserts $\sum \text{ledger entries} = 0$ and $\text{balance} = \sum \text{entries}$ for all accounts.
 2. **Concurrency Overdraft Protection**: 50 parallel withdrawals against limited funds; asserts balance never goes below zero and exactly the affordable number succeed.
 3. **Deadlock Elimination**: 40 parallel opposite transfers ($A \to B$ and $B \to A$) execute simultaneously without PostgreSQL deadlocks.
-4. **Distributed Idempotency**: 20 simultaneous threads submitting the same key execute exactly once; payload hash mismatch returns HTTP 422.
+4. **Database-Backed Idempotency**: 20 simultaneous threads submitting the same key execute exactly once; payload hash mismatch returns HTTP 422.
 5. **Authorization & Security**: Ownership isolation (404), Auditor money-movement rejection (403), unauthenticated access (401), invalid/tampered JWT rejection.
 6. **Input Validation**: Zero/negative amounts, self-transfer prohibition, frozen account lockouts.
-7. **Database Append-Only Triggers**: Attempts to execute raw SQL `UPDATE` or `DELETE` on `ledger_entries` or `audit_log` fail at the PostgreSQL storage engine level.
+7. **Database Append-Only Triggers**: Attempts to execute raw SQL `UPDATE`, `DELETE`, or `TRUNCATE` on `ledger_entries` or `audit_log` fail at the PostgreSQL storage engine level.
 
 ---
 
@@ -222,6 +222,7 @@ In the interest of engineering honesty and transparent evaluation:
 
 1. **Fixed Single Currency ("INR")**: The system strictly enforces INR. Multi-currency exchange rate conversions and foreign exchange (FX) spread calculations are not implemented.
 2. **In-Memory Login Rate Limiter**: The brute-force login limiter tracks IP addresses using an in-memory `ConcurrentHashMap`. In a multi-node horizontal cluster, a distributed Redis-based rate limiter (such as Bucket4j with Redis) would be required to share lockout state across nodes.
-3. **In-Flight Idempotency Coordination Scope**: In-flight concurrent requests on the exact same key use an in-memory `CompletableFuture` barrier combined with PostgreSQL `INSERT ... ON CONFLICT DO NOTHING`. In a multi-node deployment, requests reaching different server nodes simultaneously fall back to database unique constraint conflicts rather than the in-memory future.
+3. **Single-Instance In-Memory Barrier vs Database Unique Constraint**: The in-memory `CompletableFuture` barrier operates on **one server instance only** to prevent local threads from polling. Across multiple instances or horizontally scaled nodes, the true concurrency guarantee is PostgreSQL's `UNIQUE(user_id, key)` constraint with `ON CONFLICT DO NOTHING`.
 4. **Manual vs Scheduled Reconciliation**: Reconciliation is executed on-demand via `GET /api/admin/reconciliation` and from the admin dashboard button. An automated cron job (e.g. `@Scheduled(cron = "0 0 * * * *")`) to run reconciliation hourly and alert via PagerDuty/Slack is not configured.
 5. **Session Storage vs HTTP-Only Cookies**: Frontend stores the JWT in browser `sessionStorage`. While this prevents session lingering across browser sessions, production banking apps typically prefer HTTP-Only Secure Cookies with CSRF tokens to mitigate XSS exposure.
+

@@ -56,6 +56,9 @@ class StatementReconciliationAuditTest {
     @Autowired
     private com.snovasys.ledgerline.service.LedgerService ledgerService;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private User alice;
     private User bob;
     private User admin;
@@ -80,10 +83,12 @@ class StatementReconciliationAuditTest {
         aliceAccount = accountRepository.save(new Account(alice.getId(), "ACC-STM-A-" + suffix, 0L, false));
         bobAccount = accountRepository.save(new Account(bob.getId(), "ACC-STM-B-" + suffix, 0L, false));
 
-        com.snovasys.ledgerline.security.UserPrincipal adminPrincipal =
-                new com.snovasys.ledgerline.security.UserPrincipal(admin.getId(), admin.getUsername(), admin.getEmail(), admin.getRole(), true);
-        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(10000L, "Seed Alice"), UUID.randomUUID().toString(), adminPrincipal);
-        ledgerService.deposit(bobAccount.getId(), new DepositRequest(20000L, "Seed Bob"), UUID.randomUUID().toString(), adminPrincipal);
+        com.snovasys.ledgerline.security.UserPrincipal alicePrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(alice.getId(), alice.getUsername(), alice.getEmail(), alice.getRole(), true);
+        com.snovasys.ledgerline.security.UserPrincipal bobPrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(bob.getId(), bob.getUsername(), bob.getEmail(), bob.getRole(), true);
+        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(10000L, "Seed Alice"), UUID.randomUUID().toString(), alicePrincipal);
+        ledgerService.deposit(bobAccount.getId(), new DepositRequest(20000L, "Seed Bob"), UUID.randomUUID().toString(), bobPrincipal);
 
         aliceToken = jwtService.generateToken(alice.getId(), alice.getUsername(), alice.getEmail(), alice.getRole());
         adminToken = jwtService.generateToken(admin.getId(), admin.getUsername(), admin.getEmail(), admin.getRole());
@@ -178,5 +183,65 @@ class StatementReconciliationAuditTest {
                         .header("Authorization", "Bearer " + aliceToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("Ownership check: Alice accessing Bob's CSV export gets 404 (not 403)")
+    void csvExportOwnership404Protection() throws Exception {
+        mockMvc.perform(get("/api/accounts/" + bobAccount.getId() + "/statement/csv")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("Reconciliation test: corrupt balance in TEST DB expects FAILED; clean data expects OK")
+    void reconciliationDetectsCorruptedBalanceAndRecovers() throws Exception {
+        // 1. Clean data reports OK
+        mockMvc.perform(get("/api/admin/reconciliation")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("OK"))
+                .andExpect(jsonPath("$.isBalanced").value(true));
+
+        // 2. Corrupt Alice's stored balance via raw SQL in TEST DB only
+        jdbcTemplate.update("UPDATE accounts SET balance = balance + 5000 WHERE id = ?::uuid", aliceAccount.getId());
+
+        try {
+            // 3. Reconciliation must now report FAILED with mismatch detected
+            mockMvc.perform(get("/api/admin/reconciliation")
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("FAILED"))
+                    .andExpect(jsonPath("$.isBalanced").value(false))
+                    .andExpect(jsonPath("$.mismatches").isNotEmpty())
+                    .andExpect(jsonPath("$.mismatches[0].discrepancy").value(5000));
+        } finally {
+            // 4. Restore the balance so test environment remains clean
+            jdbcTemplate.update("UPDATE accounts SET balance = balance - 5000 WHERE id = ?::uuid", aliceAccount.getId());
+        }
+
+        // 5. Clean data again reports OK
+        mockMvc.perform(get("/api/admin/reconciliation")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("OK"))
+                .andExpect(jsonPath("$.isBalanced").value(true))
+                .andExpect(jsonPath("$.mismatches").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Denied actions write audit log row with outcome DENIED")
+    void deniedActionWritesAuditRow() throws Exception {
+        mockMvc.perform(get("/api/audit")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isForbidden());
+
+        Integer deniedCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log WHERE actor_id = ?::uuid AND outcome = 'DENIED'",
+                Integer.class,
+                alice.getId()
+        );
+        assertThat(deniedCount).isNotNull().isGreaterThan(0);
     }
 }

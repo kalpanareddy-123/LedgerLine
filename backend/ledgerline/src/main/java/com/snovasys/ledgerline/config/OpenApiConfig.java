@@ -29,7 +29,7 @@ public class OpenApiConfig {
                                 - **Paise Minor Units (BIGINT)**: All monetary figures are stored and processed in minor units (1 INR = 100 paise) avoiding floating-point rounding errors.
                                 - **Double-Entry Invariant**: Every deposit, withdrawal, and transfer creates paired DEBIT and CREDIT entries that sum to exactly 0.
                                 - **Deterministic Deadlock-Free Pessimistic Locking**: Concurrent multi-account transfers lock rows strictly in ascending Account UUID order.
-                                - **Zero-Overhead Distributed Idempotency**: All state-changing operations require an `Idempotency-Key` UUID header.
+                                - **Database-Guaranteed Idempotency**: State-changing operations require an `Idempotency-Key` UUID header. A local CompletableFuture barrier coordinates single-node concurrency, while PostgreSQL `UNIQUE(user_id, key)` provides cross-instance safety.
                                 - **Append-Only Immutability**: Database triggers forbid UPDATE or DELETE on ledger entries and audit log rows.
                                 - **Zero-Leak Authorization**: Non-owned accounts return 404 NOT_FOUND to prevent account enumeration.
                                 """)

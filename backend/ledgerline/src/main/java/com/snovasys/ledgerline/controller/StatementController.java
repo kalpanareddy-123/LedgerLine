@@ -38,7 +38,7 @@ public class StatementController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/export")
+    @GetMapping({"/export", "/csv"})
     public ResponseEntity<byte[]> exportCsv(
             @PathVariable UUID id,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,

@@ -34,7 +34,8 @@ public class IdempotencyService {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
 
-    // In-memory inflight barrier: coordinates parallel threads within this instance
+    // Single-instance inflight barrier: coordinates concurrent threads on this local node only.
+    // The real cross-instance guarantee is the database UNIQUE(user_id, key) constraint with ON CONFLICT.
     private final Map<String, CompletableFuture<TransactionResponse>> inflightRequests = new ConcurrentHashMap<>();
 
     public IdempotencyService(IdempotencyRepository idempotencyRepository,
@@ -61,7 +62,7 @@ public class IdempotencyService {
             return resolveExistingRecord(existingOpt.get(), currentHash);
         }
 
-        // 2. In-memory coordination barrier
+        // 2. In-memory coordination barrier (single-instance optimization to avoid DB polling)
         CompletableFuture<TransactionResponse> newFuture = new CompletableFuture<>();
         CompletableFuture<TransactionResponse> existingFuture = inflightRequests.putIfAbsent(coordinationKey, newFuture);
 
@@ -94,7 +95,7 @@ public class IdempotencyService {
                 return resolved;
             }
 
-            // Atomically claim in database across all nodes
+            // Cross-instance guarantee: PostgreSQL UNIQUE(user_id, key) with ON CONFLICT DO NOTHING
             String insertSql = """
                     INSERT INTO idempotency_keys (id, user_id, key, request_hash, response_status, response_body, created_at)
                     VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, 'PROCESSING', CURRENT_TIMESTAMP)
@@ -120,6 +121,8 @@ public class IdempotencyService {
             try {
                 response = action.get();
             } catch (RuntimeException ex) {
+                // Key Release Policy: If initial attempt fails (insufficient funds, validation, etc.),
+                // the key is released so the user can safely retry after depositing funds or correcting input.
                 jdbcTemplate.update("DELETE FROM idempotency_keys WHERE id = ?::uuid", recordId);
                 newFuture.completeExceptionally(ex);
                 throw ex;

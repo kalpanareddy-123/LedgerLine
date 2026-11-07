@@ -87,9 +87,9 @@ class ConcurrencyAndConservationTest {
     @DisplayName("Concurrency: 50 parallel withdrawals on limited funds - final balance never negative, exactly affordable succeed")
     void fiftyParallelWithdrawalsLimitedFunds() throws Exception {
         // Initial deposit of 10,000 paise (Rs 100.00)
-        com.snovasys.ledgerline.security.UserPrincipal adminPrincipal =
-                new com.snovasys.ledgerline.security.UserPrincipal(admin.getId(), admin.getUsername(), admin.getEmail(), Role.ADMIN, true);
-        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(10000L, "Initial funding"), UUID.randomUUID().toString(), adminPrincipal);
+        com.snovasys.ledgerline.security.UserPrincipal alicePrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(alice.getId(), alice.getUsername(), alice.getEmail(), Role.ACCOUNT_HOLDER, true);
+        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(10000L, "Initial funding"), UUID.randomUUID().toString(), alicePrincipal);
 
         int threads = 50;
         long withdrawalAmount = 500L; // 500 paise each -> exactly 20 withdrawals possible (10000 / 500 = 20)
@@ -147,10 +147,12 @@ class ConcurrencyAndConservationTest {
     @Test
     @DisplayName("Concurrency: Parallel opposite transfers A->B and B->A complete without deadlocks (ordered locks)")
     void parallelOppositeTransfersNoDeadlocks() throws Exception {
-        com.snovasys.ledgerline.security.UserPrincipal adminPrincipal =
-                new com.snovasys.ledgerline.security.UserPrincipal(admin.getId(), admin.getUsername(), admin.getEmail(), Role.ADMIN, true);
-        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(50000L, "Seed Alice"), UUID.randomUUID().toString(), adminPrincipal);
-        ledgerService.deposit(bobAccount.getId(), new DepositRequest(50000L, "Seed Bob"), UUID.randomUUID().toString(), adminPrincipal);
+        com.snovasys.ledgerline.security.UserPrincipal alicePrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(alice.getId(), alice.getUsername(), alice.getEmail(), Role.ACCOUNT_HOLDER, true);
+        com.snovasys.ledgerline.security.UserPrincipal bobPrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(bob.getId(), bob.getUsername(), bob.getEmail(), Role.ACCOUNT_HOLDER, true);
+        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(50000L, "Seed Alice"), UUID.randomUUID().toString(), alicePrincipal);
+        ledgerService.deposit(bobAccount.getId(), new DepositRequest(50000L, "Seed Bob"), UUID.randomUUID().toString(), bobPrincipal);
 
         int pairs = 20; // 20 A->B and 20 B->A = 40 parallel transfers
         int totalThreads = pairs * 2;
@@ -222,10 +224,12 @@ class ConcurrencyAndConservationTest {
     @Test
     @DisplayName("Conservation: After 50 random operations, sum of all entries = 0 and each balance = sum of entries")
     void conservationAfterRandomOperations() throws Exception {
-        com.snovasys.ledgerline.security.UserPrincipal adminPrincipal =
-                new com.snovasys.ledgerline.security.UserPrincipal(admin.getId(), admin.getUsername(), admin.getEmail(), Role.ADMIN, true);
-        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(100000L, "Initial funding"), UUID.randomUUID().toString(), adminPrincipal);
-        ledgerService.deposit(bobAccount.getId(), new DepositRequest(100000L, "Initial funding"), UUID.randomUUID().toString(), adminPrincipal);
+        com.snovasys.ledgerline.security.UserPrincipal alicePrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(alice.getId(), alice.getUsername(), alice.getEmail(), Role.ACCOUNT_HOLDER, true);
+        com.snovasys.ledgerline.security.UserPrincipal bobPrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(bob.getId(), bob.getUsername(), bob.getEmail(), Role.ACCOUNT_HOLDER, true);
+        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(100000L, "Initial funding"), UUID.randomUUID().toString(), alicePrincipal);
+        ledgerService.deposit(bobAccount.getId(), new DepositRequest(100000L, "Initial funding"), UUID.randomUUID().toString(), bobPrincipal);
 
         Random random = new Random(42);
         for (int i = 0; i < 50; i++) {
