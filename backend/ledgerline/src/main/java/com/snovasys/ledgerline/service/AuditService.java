@@ -1,18 +1,15 @@
 package com.snovasys.ledgerline.service;
 
-import com.snovasys.ledgerline.domain.AuditLog;
 import com.snovasys.ledgerline.domain.AuditOutcome;
-import com.snovasys.ledgerline.repository.AuditLogRepository;
 import com.snovasys.ledgerline.security.RequestIdFilter;
 import com.snovasys.ledgerline.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -23,22 +20,29 @@ public class AuditService {
 
     private static final Logger log = LoggerFactory.getLogger(AuditService.class);
 
-    private final AuditLogRepository auditLogRepository;
+    private final JdbcTemplate jdbcTemplate;
 
-    public AuditService(AuditLogRepository auditLogRepository) {
-        this.auditLogRepository = auditLogRepository;
+    public AuditService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /**
-     * Writes an audit entry in an isolated transaction so failed attempts are recorded
-     * even if the calling transaction rolls back.
+     * Writes an audit entry directly via JdbcTemplate in an autocommit statement.
+     * This ensures audit logging never interferes with or joins rollback-only transactions,
+     * never holds connection pool locks, and reliably survives failed operations.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(UUID actorId, String action, String targetType, String targetId,
                        AuditOutcome outcome, String ip, String requestId, String details) {
         try {
-            AuditLog entry = new AuditLog(actorId, action, targetType, targetId, outcome, ip, requestId, details);
-            auditLogRepository.save(entry);
+            String sql = """
+                    INSERT INTO audit_log (id, actor_id, action, target_type, target_id, outcome, ip, request_id, details, created_at)
+                    VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, ?, ?, ?, ?::jsonb, CURRENT_TIMESTAMP)
+                    """;
+            String jsonDetails = (details != null && !details.isBlank()) ? details.trim() : "{}";
+            if (!jsonDetails.startsWith("{") && !jsonDetails.startsWith("[")) {
+                jsonDetails = "{\"info\":\"" + jsonDetails.replace("\"", "\\\"").replace("\n", " ") + "\"}";
+            }
+            jdbcTemplate.update(sql, actorId, action, targetType, targetId, outcome.name(), ip, requestId, jsonDetails);
         } catch (Exception e) {
             log.error("Failed to write audit log entry for action: {}", action, e);
         }
@@ -47,7 +51,6 @@ public class AuditService {
     /**
      * Context-aware helper extracting actor, ip, and requestId from current request/security context.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordAction(String action, String targetType, String targetId, AuditOutcome outcome, String details) {
         UUID actorId = getCurrentActorId();
         String ip = getClientIp();

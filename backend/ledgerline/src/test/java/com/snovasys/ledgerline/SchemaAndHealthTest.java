@@ -93,4 +93,22 @@ class SchemaAndHealthTest {
             jdbcTemplate.update("DELETE FROM ledger_entries WHERE id = ?::uuid", entryId);
         }).hasMessageContaining("append-only");
     }
+
+    @Test
+    @DisplayName("DB Trigger: audit_log is strictly append-only (UPDATE and DELETE fail)")
+    void auditLogAppendOnlyTriggerFailsOnUpdateOrDelete() {
+        String logId = jdbcTemplate.queryForObject(
+                "INSERT INTO audit_log (action, outcome, ip, request_id) VALUES ('TEST_ACTION', 'SUCCESS', '127.0.0.1', 'req-1') RETURNING id",
+                String.class
+        );
+
+        assertThatThrownBy(() -> {
+            jdbcTemplate.update("UPDATE audit_log SET outcome = 'FAILED' WHERE id = ?::uuid", logId);
+        }).hasMessageContaining("append-only");
+
+        assertThatThrownBy(() -> {
+            jdbcTemplate.update("DELETE FROM audit_log WHERE id = ?::uuid", logId);
+        }).hasMessageContaining("append-only");
+    }
 }
+

@@ -136,13 +136,6 @@ public class LedgerService {
 
         // Balance check inside transaction after acquiring pessimistic lock (Layer 1)
         if (sourceAcc.getBalance() < amount) {
-            auditService.recordAction(
-                    "WITHDRAW_FAILED_INSUFFICIENT_FUNDS",
-                    "ACCOUNT",
-                    sourceAcc.getId().toString(),
-                    AuditOutcome.FAILURE,
-                    "{\"balance\":" + sourceAcc.getBalance() + ",\"requested\":" + amount + "}"
-            );
             throw new InsufficientFundsException(
                     "Insufficient funds: account balance is " + sourceAcc.getBalance() + " paise, requested " + amount + " paise."
             );
@@ -228,13 +221,6 @@ public class LedgerService {
 
         // Balance check inside transaction after acquiring pessimistic lock (Layer 1)
         if (sourceAcc.getBalance() < amount) {
-            auditService.recordAction(
-                    "TRANSFER_FAILED_INSUFFICIENT_FUNDS",
-                    "ACCOUNT",
-                    sourceAcc.getId().toString(),
-                    AuditOutcome.FAILURE,
-                    "{\"balance\":" + sourceAcc.getBalance() + ",\"requested\":" + amount + "}"
-            );
             throw new InsufficientFundsException(
                     "Insufficient funds: account balance is " + sourceAcc.getBalance() + " paise, requested " + amount + " paise."
             );

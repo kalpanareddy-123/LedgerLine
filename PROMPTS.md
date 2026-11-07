@@ -93,3 +93,20 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 - **What was assumed / suggested**: In `SchemaAndHealthTest`, a raw SQL query inserted a DEBIT entry for `SYS_CASH_CLEARING` to balance a test CREDIT entry, but did not update the `balance` column on `accounts`.
 - **Why it was wrong**: In LedgerLine, reconciliation compares both the total ledger sum (`SUM(entries) == 0`) AND each account's stored `balance` against `SUM(account_entries)`. Because `SYS_CASH_CLEARING.balance` remained 0 while its ledger entries summed to -1000, reconciliation correctly flagged a ledger-to-account mismatch.
 - **What was done**: Added an `UPDATE accounts SET balance = balance - 1000 WHERE id = 'SYS_CASH_CLEARING'` statement in `SchemaAndHealthTest` to keep the stored balance perfectly synchronized with the appended ledger entry.
+
+---
+
+### 12. HikariCP Connection Pool Exhaustion from `Propagation.REQUIRES_NEW`
+- **Problem**: Running 50 concurrent transactions timed out after 20,000ms with `SQLTransientConnectionException: HikariPool - Connection is not available, request timed out`.
+- **What was assumed / suggested**: Annotating audit logging methods with `@Transactional(propagation = Propagation.REQUIRES_NEW)` inside service transactions that hold pessimistic row locks.
+- **Why it was wrong**: Under high concurrency (e.g. 50 parallel requests with a pool of 30 connections), 30 threads each acquired an outer connection and blocked on pessimistic row locks. The active thread holding the lock then called the `REQUIRES_NEW` audit service, which requested a *second* connection from the pool. Because all 30 connections were already held by the waiting threads, a classic pool deadlock occurred where threads waited on each other indefinitely until connection timeouts fired.
+- **What was done**: Increased pool size to 50 and decoupled audit log writes from Spring JPA transactions by using direct `JdbcTemplate` autocommit inserts in `AuditService`. Each thread now holds at most 1 connection, completely eliminating connection pool deadlocks.
+
+---
+
+### 13. UnexpectedRollbackException When Auditing Failures in GlobalExceptionHandler
+- **Problem**: Handling business exceptions in `GlobalExceptionHandler` resulted in `NestedServletException` with 500 errors instead of returning standard 400/404/422 responses.
+- **What was assumed / suggested**: Using `@Transactional(propagation = Propagation.REQUIRED)` for `AuditService.record(...)`.
+- **Why it was wrong**: When an exception was thrown inside a `@Transactional` service, Spring marked the active transaction as `rollback-only`. When `GlobalExceptionHandler` caught the exception and invoked `auditService.record(...)`, Spring's transaction interceptor joined the rollback-only transaction. Exiting `record(...)` caused Spring to throw `UnexpectedRollbackException: Transaction silently rolled back because it has been marked as rollback-only`, crashing the exception handler.
+- **What was done**: Rewrote `AuditService` to use direct `JdbcTemplate` autocommit executions without `@Transactional`, allowing audit logging of both successful and failed attempts without coupling to Hibernate transaction state or causing rollback exceptions.
+

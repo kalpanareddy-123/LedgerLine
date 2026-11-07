@@ -5,9 +5,9 @@ spring:
     password: ${TEST_DB_PASSWORD:ledgerline_secret}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 30
-      minimum-idle: 5
-      connection-timeout: 20000
+      maximum-pool-size: 50
+      minimum-idle: 10
+      connection-timeout: 30000
   jpa:
     open-in-view: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect

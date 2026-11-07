@@ -25,6 +25,12 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    private final com.snovasys.ledgerline.service.AuditService auditService;
+
+    public GlobalExceptionHandler(com.snovasys.ledgerline.service.AuditService auditService) {
+        this.auditService = auditService;
+    }
+
     private String getRequestId(HttpServletRequest request) {
         Object reqId = request.getAttribute(RequestIdFilter.REQUEST_ID_ATTRIBUTE);
         if (reqId != null) {
@@ -37,6 +43,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleApiException(ApiException ex, HttpServletRequest request) {
         String requestId = getRequestId(request);
         log.warn("API Exception [{}]: {} - Path: {}", ex.getCode(), ex.getMessage(), request.getRequestURI());
+
+        // Audit the failed state-changing or denied action
+        auditService.record(
+                auditService.getCurrentActorId(),
+                ex.getCode(),
+                "API",
+                request.getRequestURI(),
+                com.snovasys.ledgerline.domain.AuditOutcome.FAILURE,
+                auditService.getClientIp(),
+                requestId,
+                ex.getMessage()
+        );
 
         ErrorResponse error = new ErrorResponse(
                 Instant.now().toString(),
@@ -112,6 +130,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         String requestId = getRequestId(request);
+
+        auditService.record(
+                auditService.getCurrentActorId(),
+                "ACCESS_DENIED",
+                "API",
+                request.getRequestURI(),
+                com.snovasys.ledgerline.domain.AuditOutcome.DENIED,
+                auditService.getClientIp(),
+                requestId,
+                ex.getMessage()
+        );
+
         ErrorResponse error = new ErrorResponse(
                 Instant.now().toString(),
                 HttpStatus.FORBIDDEN.value(),
