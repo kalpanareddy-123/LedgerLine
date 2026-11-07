@@ -1,130 +1,185 @@
-# LedgerLine - Deployment Guide
+# LedgerLine - Production Cloud Deployment Guide
 
-> **Note for Evaluators & Candidates**:  
-> In accordance with challenge rules, no automated external pushes or deployments have been executed by the agent. Follow the exact commands below to deploy locally or to cloud environments.
+> **CRITICAL DEADLINE & PRIVACY NOTICE**:
+> - Challenge Deadline: **Thursday 12 Nov 2026, 6:00 PM IST**
+> - **Keep your GitHub repository PRIVATE** throughout development and deployment. Make it public only at or immediately prior to the deadline as requested by evaluators.
+> - **Free-Tier Cold Start Warning**: Free instances on Render spin down into sleep mode after 15 minutes of inactivity. The first wake-up request takes **30–60 seconds**. Always "warm up" your backend by hitting `/api/health` 10 minutes before presenting or submitting!
 
 ---
 
-## 1. Quick Local Deployment (Docker Compose)
+## Architecture Overview
 
-The easiest way to run the entire stack (PostgreSQL 16, Spring Boot 3 Backend, React Frontend) locally:
-
-### Prerequisites:
-- Docker Desktop or Docker Engine + Compose installed.
-
-### Steps:
-```bash
-# 1. Clone repository and navigate to root
-cd kalpana
-
-# 2. Copy environment template
-cp .env.example .env
-
-# 3. Start all services in background
-docker compose up -d --build
-
-# 4. View startup logs
-docker compose logs -f
+```
+[ Customer Browser / Mobile ]
+              │
+              ▼ HTTPS
+[ Vercel / Netlify Frontend (React SPA) ]
+              │
+              ▼ REST API (JWT + Idempotency-Key)
+[ Render / Railway Backend (Spring Boot 3 / Java 21) ]
+              │
+              ▼ JDBC with TLS (sslmode=require)
+[ Neon / Supabase Serverless PostgreSQL 16 ]
 ```
 
-### Accessing Local Services:
-- **Frontend Web Dashboard**: [http://localhost:3000](http://localhost:3000)
-- **Backend API & Health**: [http://localhost:8080/api/health](http://localhost:8080/api/health)
-- **Interactive Swagger UI**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-- **PostgreSQL Database**: `localhost:5432` (`ledgerline_db`, user `ledgerline_app`)
-
 ---
 
-## 2. Managed Database Setup (Neon / Supabase / Render Postgres)
+## Step 1: Create a Private GitHub Repository & Push
 
-LedgerLine requires a standard PostgreSQL instance with full DDL permissions for Flyway migrations and trigger creation.
-
-### Option A: Neon Postgres (Recommended for Serverless)
-1. Sign up at [neon.tech](https://neon.tech) and click **Create Project**.
-2. Select PostgreSQL 16 and your closest region.
-3. Save the connection string:
-   ```text
-   postgres://[user]:[password]@[host]/[database]?sslmode=require
+1. Open your terminal in the project directory:
+   ```bash
+   cd /path/to/kalpana
    ```
-4. Note your credentials for backend deployment:
-   - `DB_URL`: `jdbc:postgresql://[host]:5432/[database]?sslmode=require`
-   - `DB_USER`: `[user]`
-   - `DB_PASSWORD`: `[password]`
-
-### Option B: Supabase
-1. Create a project at [supabase.com](https://supabase.com).
-2. Go to **Settings > Database > Connection Pooling / Direct Connection**.
-3. Use the JDBC connection format provided in your dashboard.
-
-### Option C: Render PostgreSQL
-1. On [render.com](https://render.com), click **New > PostgreSQL**.
-2. Name it `ledgerline-db`, set User to `ledgerline_app`, database to `ledgerline_db`.
-3. Copy the **Internal Database URL** (for Render backend) or **External Database URL**.
+2. Verify git status is clean and all commits are conventional:
+   ```bash
+   git status
+   git log --oneline -n 5
+   ```
+3. Create a **Private** repository on GitHub named `ledgerline`:
+   - Visit [github.com/new](https://github.com/new)
+   - Repository Name: `ledgerline`
+   - Visibility: **Private** (Do NOT initialize with README/license)
+   - Click **Create repository**
+4. Push your existing local repository:
+   ```bash
+   git remote add origin https://github.com/[YOUR_GITHUB_USERNAME]/ledgerline.git
+   git branch -M main
+   git push -u origin main
+   ```
 
 ---
 
-## 3. Cloud Backend Deployment (Render or Railway)
+## Step 2: Provision Cloud PostgreSQL (Neon.tech Recommended)
 
-### Deploying to Render
-1. In Render Dashboard, click **New > Web Service**.
-2. Connect your Git repository.
-3. Configure settings:
+1. Sign up or log in at [neon.tech](https://neon.tech).
+2. Click **Create a project**:
+   - Name: `ledgerline-db`
+   - Postgres version: `PostgreSQL 16`
+   - Region: Select closest region (e.g., `AWS Asia Pacific (Mumbai)` or `AWS Europe / US`).
+3. Under the **Dashboard** > **Connection Details**:
+   - Choose **Parameters only** or **Connection string**.
+   - Note the connection host, database name (`neondb`), username (`neondb_owner`), and password.
+4. Construct your Spring Boot JDBC URL with SSL:
+   ```text
+   jdbc:postgresql://ep-xyz-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
+   ```
+
+*(Alternatively, Supabase or Render Postgres can be used by obtaining their JDBC connection strings with SSL enabled).*
+
+---
+
+## Step 3: Deploy Backend on Render (or Railway)
+
+### Option A: Render (Recommended)
+1. Log in to [render.com](https://render.com).
+2. Click **New +** > **Web Service**.
+3. Select **Build and deploy from a Git repository** and connect your private `ledgerline` repo.
+4. Fill in the Service Details:
    - **Name**: `ledgerline-backend`
-   - **Root Directory**: `backend/ledgerline`
-   - **Environment**: `Docker`
+   - **Region**: Same region as your database.
+   - **Branch**: `main`
+   - **Root Directory**: `backend/ledgerline`  <-- *CRITICAL*
+   - **Runtime**: `Docker`
    - **Dockerfile Path**: `Dockerfile`
-4. Set Environment Variables under **Environment**:
-   - `DB_URL`: `jdbc:postgresql://[db-host]:5432/[database]?sslmode=require`
-   - `DB_USER`: `[db-user]`
-   - `DB_PASSWORD`: `[db-password]`
-   - `JWT_SECRET`: `[generate a random 64-character string]`
-   - `CORS_ALLOWED_ORIGINS`: `https://[your-frontend-domain].vercel.app,http://localhost:3000`
-5. Click **Deploy Web Service**. Flyway migrations will run automatically on startup and seed initial demo accounts.
+   - **Instance Type**: `Free`
+5. Click **Advanced** > **Add Environment Variable**:
 
-### Deploying to Railway
-1. In Railway, click **New Project > Deploy from GitHub repo**.
-2. Set Root Directory to `/backend/ledgerline`.
-3. Railway automatically detects the multi-stage Dockerfile.
-4. Add the same environment variables under the **Variables** tab.
+| Variable | Value / Description | Example |
+| :--- | :--- | :--- |
+| `PORT` | `8080` | `8080` |
+| `DB_URL` | Neon JDBC URL with sslmode=require | `jdbc:postgresql://ep-xyz.neon.tech/neondb?sslmode=require` |
+| `DB_USER` | Neon Database user | `neondb_owner` |
+| `DB_PASSWORD` | Neon Database password | `[YOUR_NEON_PASSWORD]` |
+| `JWT_SECRET` | Generate via `openssl rand -base64 48` | `48+ random base64 characters` |
+| `JWT_EXPIRATION_MINUTES`| Token validity | `30` |
+| `CORS_ALLOWED_ORIGINS` | Temporary until frontend deployed | `http://localhost:3000,http://localhost:5173` |
+| `DEMO_SEED` | Seed demo accounts on startup | `true` |
+| `MAX_TRANSACTION_AMOUNT`| Server-side upper limit | `10000000` |
+
+> **JWT Secret Generation Command**:
+> Run in your local terminal:
+> ```bash
+> openssl rand -base64 48
+> ```
+> Copy the output directly into the `JWT_SECRET` field.
+
+6. Click **Create Web Service**.
+7. Render will pull the repo, build the Docker image, run Flyway migrations (`V1__init_schema.sql` and `V2__block_truncate.sql`), seed the initial demo data, and start the application.
+8. When deployment finishes, copy your Render URL:
+   `https://ledgerline-backend-xxxx.onrender.com`
+9. Verify health check:
+   ```bash
+   curl -i https://ledgerline-backend-xxxx.onrender.com/api/health
+   # Returns: HTTP 200 {"status":"UP","service":"LedgerLine Core Engine"}
+   ```
 
 ---
 
-## 4. Cloud Frontend Deployment (Vercel or Netlify)
+## Step 4: Deploy Frontend on Vercel
 
-### Deploying to Vercel
-1. Install Vercel CLI or import repository at [vercel.com](https://vercel.com).
-2. Configure Project Settings:
+1. Log in to [vercel.com](https://vercel.com).
+2. Click **Add New...** > **Project**.
+3. Import your GitHub repository `ledgerline`.
+4. Configure Project Settings:
    - **Framework Preset**: `Vite`
-   - **Root Directory**: `frontend`
+   - **Root Directory**: Click Edit, select `frontend` <-- *CRITICAL*
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
-3. Add Environment Variable:
-   - `VITE_API_BASE_URL`: `https://ledgerline-backend.onrender.com` (your backend URL without trailing slash)
-4. Click **Deploy**.
-
-### Deploying to Netlify
-1. Connect repo at [netlify.com](https://netlify.com).
-2. Set base directory to `frontend`, build command to `npm run build`, and publish directory to `frontend/dist`.
-3. Add build environment variable `VITE_API_BASE_URL`.
-4. Ensure `_redirects` file exists in `frontend/public/` with content: `/* /index.html 200` to support React Router single-page navigation.
+5. Expand **Environment Variables**:
+   - Name: `VITE_API_URL`
+   - Value: `https://ledgerline-backend-xxxx.onrender.com` (Your Render backend URL with NO trailing slash)
+6. Click **Deploy**.
+7. Vercel will build the React SPA and provide a live URL, e.g.:
+   `https://ledgerline-frontend-xxxx.vercel.app`
+8. Single Page Application (SPA) routing is handled automatically by the included `vercel.json` and `public/_redirects`.
 
 ---
 
-## 5. Verifying Deployment Integrity
+## Step 5: Complete the 2-Way CORS Handshake
 
-Once deployed, verify the system invariants:
-
-1. **Health Check**:
-   ```bash
-   curl -i https://[your-backend-domain]/api/health
-   # Expected: HTTP 200 {"status":"UP"}
+To prevent browser CORS rejection when the frontend communicates with the backend:
+1. Return to [render.com](https://render.com) > your backend service > **Environment**.
+2. Update `CORS_ALLOWED_ORIGINS` to include your live Vercel URL:
+   ```text
+   https://ledgerline-frontend-xxxx.vercel.app,http://localhost:3000,http://localhost:5173
    ```
+3. Click **Save Changes**. Render will automatically trigger a zero-downtime redeploy.
 
-2. **Swagger Documentation**:
-   Visit `https://[your-backend-domain]/swagger-ui.html`.
+---
 
-3. **Reconciliation Audit**:
-   Log in as `admin` and call `GET /api/admin/reconciliation` to confirm:
-   - `status: "OK"`
-   - `totalLedgerSum: 0`
-   - `mismatches: []`
+## Step 6: Verify with Automated Smoke Test
+
+Verify the entire cloud deployment end-to-end using the automated smoke test script:
+
+### On Linux / macOS:
+```bash
+chmod +x scripts/smoke-test.sh
+./scripts/smoke-test.sh https://ledgerline-backend-xxxx.onrender.com
+```
+
+### On Windows CMD:
+```cmd
+scripts\smoke-test.bat https://ledgerline-backend-xxxx.onrender.com
+```
+
+### The smoke test performs:
+1. `GET /api/health` -> Expects HTTP 200 `status: UP`
+2. `POST /api/auth/login` -> Logs in with demo user, extracts JWT token
+3. `POST /api/accounts/{id}/deposit` (Attempt 1) -> Submits with unique `Idempotency-Key`
+4. `POST /api/accounts/{id}/deposit` (Attempt 2) -> Replays exact same key; expects `Idempotent-Replay: true` header
+5. `POST /api/transfers` -> Executes transfer to counterparty
+6. `GET /api/admin/reconciliation` -> Confirms total book conservation $\sum = 0$ and `status: OK`
+
+---
+
+## Step 7: Final Demo Check Before Evaluation
+
+1. Open your live Vercel frontend in an **Incognito / Private Window**.
+2. Log in with demo accounts:
+   - Customer: `alice` / `AlicePassword123!`
+   - Admin: `admin` / `AdminPassword123!`
+   - Auditor: `auditor` / `AuditorPassword123!`
+3. Execute a live deposit and transfer. Confirm that:
+   - Account balances update immediately.
+   - Idempotency key indicator is visible.
+   - Admin reconciliation panel shows 100% OK and books balanced.

@@ -53,58 +53,70 @@ public class DemoDataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        if (userRepository.findByUsername("admin").isPresent()) {
-            log.info("Demo users already seeded. Skipping startup seed.");
+        if (userRepository.findByUsername("admin").isPresent() && accountRepository.count() > 1) {
+            log.info("Demo users and accounts already seeded. Skipping startup seed.");
             return;
         }
 
         log.info("Seeding initial demo data for LedgerLine...");
 
-        // 1. Create Admin
-        User admin = userRepository.save(new User(
+        // 1. Create or retrieve Admin
+        User admin = userRepository.findByUsername("admin").orElseGet(() ->
+            userRepository.save(new User(
                 "admin",
                 "admin@ledgerline.local",
                 passwordEncoder.encode("AdminPass123!"),
                 Role.ADMIN
-        ));
+            ))
+        );
 
-        // 2. Create Auditor
-        userRepository.save(new User(
+        // 2. Create or retrieve Auditor
+        userRepository.findByUsername("auditor").orElseGet(() ->
+            userRepository.save(new User(
                 "auditor",
                 "auditor@ledgerline.local",
                 passwordEncoder.encode("AuditorPass123!"),
                 Role.AUDITOR
-        ));
+            ))
+        );
 
-        // 3. Create Account Holder: Alice
-        User alice = userRepository.save(new User(
+        // 3. Create or retrieve Account Holder: Alice
+        User alice = userRepository.findByUsername("alice").orElseGet(() ->
+            userRepository.save(new User(
                 "alice",
                 "alice@ledgerline.local",
                 passwordEncoder.encode("AlicePass123!"),
                 Role.ACCOUNT_HOLDER
-        ));
+            ))
+        );
 
-        Account aliceAcc = accountRepository.save(new Account(
+        Account aliceAcc = accountRepository.findByOwnerId(alice.getId()).stream().findFirst().orElseGet(() ->
+            accountRepository.save(new Account(
                 alice.getId(),
                 "ACC-ALICE-01",
                 0L,
                 false
-        ));
+            ))
+        );
 
-        // 4. Create Account Holder: Bob
-        User bob = userRepository.save(new User(
+        // 4. Create or retrieve Account Holder: Bob
+        User bob = userRepository.findByUsername("bob").orElseGet(() ->
+            userRepository.save(new User(
                 "bob",
                 "bob@ledgerline.local",
                 passwordEncoder.encode("BobPass123!"),
                 Role.ACCOUNT_HOLDER
-        ));
+            ))
+        );
 
-        Account bobAcc = accountRepository.save(new Account(
+        Account bobAcc = accountRepository.findByOwnerId(bob.getId()).stream().findFirst().orElseGet(() ->
+            accountRepository.save(new Account(
                 bob.getId(),
                 "ACC-BOB-01",
                 0L,
                 false
-        ));
+            ))
+        );
 
         // 5. Seed initial balances through the double-entry engine as the respective account holders
         UserPrincipal alicePrincipal = new UserPrincipal(
