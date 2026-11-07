@@ -1,0 +1,34 @@
+# Compiled class files
+**/target/
+*.class
+
+# Node / Frontend
+**/node_modules/
+**/dist/
+**/build/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment and Secrets
+.env
+.env.local
+*.env
+!.env.example
+
+# IDE & Editor files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Package manager lock files if excluded (keep standard or lockfiles)
+.mvn/wrapper/maven-wrapper.jar
