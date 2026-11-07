@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ledgerline-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ledgerline_db
+      POSTGRES_USER: ${DB_USER:-ledgerline_app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ledgerline_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ledgerline_app} -d ledgerline_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend/ledgerline
+      dockerfile: Dockerfile
+    container_name: ledgerline-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      DB_URL: jdbc:postgresql://postgres:5432/ledgerline_db
+      DB_USER: ${DB_USER:-ledgerline_app}
+      DB_PASSWORD: ${DB_PASSWORD:-ledgerline_secret}
+      JWT_SECRET: ${JWT_SECRET:-ledgerline_super_secure_jwt_secret_key_minimum_256_bits_length_123456}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost"
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ledgerline-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
