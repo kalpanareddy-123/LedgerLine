@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/ledgerline_db}
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/ledgerline_test_db}
     username: ${TEST_DB_USER:ledgerline_app}
     password: ${TEST_DB_PASSWORD:ledgerline_secret}
     driver-class-name: org.postgresql.Driver

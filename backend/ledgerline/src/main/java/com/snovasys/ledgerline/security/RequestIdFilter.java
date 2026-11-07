@@ -34,6 +34,19 @@ public class RequestIdFilter extends OncePerRequestFilter {
         response.setHeader(REQUEST_ID_HEADER, requestId);
         MDC.put(MDC_KEY, requestId);
 
+        // Essential security headers on every response
+        response.setHeader("X-Content-Type-Options", "nosniff");
+        response.setHeader("X-Frame-Options", "DENY");
+        response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+
+        // Disable caching on API endpoints
+        String uri = request.getRequestURI();
+        if (uri != null && uri.startsWith("/api")) {
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            response.setHeader("Pragma", "no-cache");
+            response.setHeader("Expires", "0");
+        }
+
         try {
             filterChain.doFilter(request, response);
         } finally {

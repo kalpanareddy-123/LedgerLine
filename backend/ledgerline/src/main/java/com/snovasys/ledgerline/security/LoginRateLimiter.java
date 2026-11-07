@@ -10,14 +10,17 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LoginRateLimiter {
 
     private static final int MAX_ATTEMPTS = 5;
-    private static final long LOCK_DURATION_SECONDS = 300; // 5 minutes
+    private static final long LOCK_DURATION_SECONDS = 300; // 5 minutes lockout
+    private static final long ATTEMPT_WINDOW_SECONDS = 600; // 10 minutes sliding window
 
     private static class Attempt {
-        int count;
-        Instant lockUntil;
+        final int count;
+        final Instant firstAttemptAt;
+        final Instant lockUntil;
 
-        Attempt(int count, Instant lockUntil) {
+        Attempt(int count, Instant firstAttemptAt, Instant lockUntil) {
             this.count = count;
+            this.firstAttemptAt = firstAttemptAt;
             this.lockUntil = lockUntil;
         }
     }
@@ -29,29 +32,36 @@ public class LoginRateLimiter {
         if (attempt == null) {
             return false;
         }
+        Instant now = Instant.now();
         if (attempt.lockUntil != null) {
-            if (Instant.now().isBefore(attempt.lockUntil)) {
+            if (now.isBefore(attempt.lockUntil)) {
                 return true;
             } else {
-                // Lock expired
+                // Lock expired - clear record so client can attempt again
                 attempts.remove(key);
                 return false;
             }
+        }
+        // If window expired without lockout, remove stale attempt
+        if (now.isAfter(attempt.firstAttemptAt.plusSeconds(ATTEMPT_WINDOW_SECONDS))) {
+            attempts.remove(key);
+            return false;
         }
         return false;
     }
 
     public void recordFailure(String key) {
+        Instant now = Instant.now();
         attempts.compute(key, (k, current) -> {
-            if (current == null) {
-                return new Attempt(1, null);
+            if (current == null || now.isAfter(current.firstAttemptAt.plusSeconds(ATTEMPT_WINDOW_SECONDS))) {
+                return new Attempt(1, now, null);
             }
             int newCount = current.count + 1;
             Instant lockUntil = null;
             if (newCount >= MAX_ATTEMPTS) {
-                lockUntil = Instant.now().plusSeconds(LOCK_DURATION_SECONDS);
+                lockUntil = now.plusSeconds(LOCK_DURATION_SECONDS);
             }
-            return new Attempt(newCount, lockUntil);
+            return new Attempt(newCount, current.firstAttemptAt, lockUntil);
         });
     }
 

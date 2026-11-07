@@ -27,15 +27,18 @@ public class LedgerService {
     private final TransactionRepository transactionRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final AuditService auditService;
+    private final long maxTransactionAmount;
 
     public LedgerService(AccountRepository accountRepository,
                          TransactionRepository transactionRepository,
                          LedgerEntryRepository ledgerEntryRepository,
-                         AuditService auditService) {
+                         AuditService auditService,
+                         @org.springframework.beans.factory.annotation.Value("${ledgerline.max-transaction-amount:1000000000}") long maxTransactionAmount) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.ledgerEntryRepository = ledgerEntryRepository;
         this.auditService = auditService;
+        this.maxTransactionAmount = maxTransactionAmount;
     }
 
     /**
@@ -326,8 +329,8 @@ public class LedgerService {
         if (amount == null || amount <= 0) {
             throw new InvalidRequestException("Transaction amount must be strictly greater than zero");
         }
-        if (amount > MAX_TRANSACTION_AMOUNT) {
-            throw new InvalidRequestException("Transaction amount exceeds the maximum permissible limit of 1 Crore INR");
+        if (amount > maxTransactionAmount) {
+            throw new InvalidRequestException("Transaction amount exceeds the maximum permissible limit of " + maxTransactionAmount + " paise");
         }
     }
 

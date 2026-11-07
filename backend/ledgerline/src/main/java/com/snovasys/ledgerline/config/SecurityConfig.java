@@ -78,10 +78,15 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
+                .filter(origin -> !origin.isEmpty() && !origin.equals("*"))
                 .toList();
-        config.setAllowedOrigins(origins);
+        if (origins.isEmpty()) {
+            config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));
+        } else {
+            config.setAllowedOrigins(origins);
+        }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id", "Accept"));
         config.setExposedHeaders(List.of("Idempotent-Replay", "X-Request-Id"));
         config.setAllowCredentials(true);
 

@@ -30,7 +30,7 @@ import java.util.UUID;
  * so the ledger sum remains strictly zero.
  */
 @Component
-@Profile("!test")
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "ledgerline.demo-seed", havingValue = "true")
 public class DemoDataSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);

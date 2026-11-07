@@ -30,8 +30,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.test.context.ActiveProfiles;
+
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class LedgerEngineTest {
 
     @Autowired
@@ -247,5 +250,22 @@ class LedgerEngineTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("Transaction exceeding max transaction amount returns 400 Bad Request")
+    void transactionExceedingMaxAmountReturns400() throws Exception {
+        DepositRequest req = new DepositRequest(1_000_000_001L, "Excessive deposit");
+        String key = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/api/accounts/" + aliceAccount.getId() + "/deposit")
+                        .header("Authorization", "Bearer " + aliceToken)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("exceeds the maximum permissible limit")));
     }
 }

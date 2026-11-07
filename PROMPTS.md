@@ -118,4 +118,21 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 - **Why it was wrong**: In the domain model, insufficient funds represents a semantically valid request syntax that cannot be processed due to business domain constraints, which `InsufficientFundsException` correctly maps to HTTP 422 `UNPROCESSABLE_ENTITY`. The test assertion strictly checked `status == 400`.
 - **What was done**: Updated the test assertions to accept HTTP 422 `UNPROCESSABLE_ENTITY` (or 400) when verifying `INSUFFICIENT_FUNDS` rejection payloads.
 
+---
+
+### 15. Lack of Explicit Test Profile on Test Classes Endangering Production/Dev Database
+- **Problem**: Six test classes (`SchemaAndHealthTest`, `AccountAndAdminTest`, `AuthAndSecurityTest`, `IdempotencyTest`, `LedgerEngineTest`, `StatementReconciliationAuditTest`) lacked the `@ActiveProfiles("test")` annotation, defaulting to the active environment in `application.yml` (`ledgerline_db`).
+- **What was assumed / suggested**: Relying on default Spring Boot test context resolution without explicit test profile declaration.
+- **Why it was wrong**: Under test execution, if an ambient `TEST_DB_URL` is not set or default profile is used, tests would run against the primary `ledgerline_db`, violating the global isolation rule and corrupting demo or production state.
+- **What was done**: Added `@ActiveProfiles("test")` across all 7 test classes and configured `application-test.yml` to target the isolated `ledgerline_test_db`.
+
+---
+
+### 16. Username-Based Rate Limiting vs Per-IP Lockout with X-Forwarded-For
+- **Problem**: `LoginRateLimiter` keyed attempts by lowercase username rather than client IP, allowing attackers to cycle through usernames from a single IP without triggering lockout, and never expired stale failed attempts.
+- **What was assumed / suggested**: Keying the login rate limiter by `request.username().toLowerCase()` with infinite attempt lifetime.
+- **Why it was wrong**: Keying by username allows password spraying attacks across many user accounts from a single malicious IP. Furthermore, without a sliding window expiration, a user who failed 4 times across several weeks would be locked out upon a single typo weeks later.
+- **What was done**: Keyed the rate limiter by client IP (extracting the leftmost client IP from `X-Forwarded-For` header safely), added a 10-minute sliding window (`ATTEMPT_WINDOW_SECONDS`) to expire stale attempts, and ensured successful logins clear the IP record.
+
+
 

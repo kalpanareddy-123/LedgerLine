@@ -43,11 +43,11 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request, String ip, String requestId) {
-        String rateLimitKey = request.username().trim().toLowerCase();
+        String rateLimitKey = (ip != null && !ip.isBlank()) ? ip.trim() : "127.0.0.1";
 
         if (rateLimiter.isLocked(rateLimitKey)) {
-            auditService.record(null, "LOGIN_ATTEMPT", "USER", rateLimitKey,
-                    AuditOutcome.DENIED, ip, requestId, "{\"reason\":\"Brute force rate limit lockout\"}");
+            auditService.record(null, "LOGIN_ATTEMPT", "IP", rateLimitKey,
+                    AuditOutcome.DENIED, ip, requestId, "{\"reason\":\"Brute force per-IP rate limit lockout\"}");
             throw new RateLimitException("Too many failed login attempts. Please try again in 5 minutes.");
         }
 
