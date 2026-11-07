@@ -63,3 +63,33 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 - **What was done**: Disabled `spring.jpa.open-in-view: false`, increased pool size to 30, and made `JwtAuthenticationFilter` completely stateless by constructing `UserPrincipal` directly from verified JWT claims rather than querying the database per request.
 
 ---
+
+### 8. Foreign Key Constraint on `transactions.created_by` in Test Seed Data
+- **Problem**: When seeding initial funds in test classes via `ledgerService.deposit(...)`, tests failed with `DataIntegrityViolationException: Key (created_by)=(<uuid>) is not present in table "users"`.
+- **What was assumed / suggested**: Passing a dummy `UserPrincipal` with `UUID.randomUUID()` to represent the system or admin actor during test setup.
+- **Why it was wrong**: The schema enforces referential integrity with a foreign key constraint `transactions.created_by REFERENCES users(id)`. Generating random UUIDs violates this constraint.
+- **What was done**: Saved an explicit admin user in the test setup via `userRepository.save(...)` and passed its persisted ID in the `UserPrincipal`.
+
+---
+
+### 9. Hibernate `ObjectOptimisticLockingFailure` on Stale Entity Version Post-Deposit
+- **Problem**: In `LedgerEngineTest.setup()`, setting `frozenAccount.setStatus(AccountStatus.FROZEN)` threw `ObjectOptimisticLockingFailure: Row was updated or deleted by another transaction`.
+- **What was assumed / suggested**: Calling `accountRepository.save(frozenAccount)` using the local entity reference created prior to making a test deposit.
+- **Why it was wrong**: Calling `ledgerService.deposit(...)` loaded and modified the account in its own transaction, which incremented the `@Version` column from 0 to 1. The local in-memory reference in `setup()` still held `version = 0`. Attempting to save it caused Hibernate to check for `WHERE version = 0`, detecting an optimistic lock collision.
+- **What was done**: Reloaded the latest entity state from the database via `accountRepository.findById(frozenAccount.getId()).orElseThrow()` before updating its status to `FROZEN`.
+
+---
+
+### 10. Statement Entry Ordering for Banking Statements and Pagination
+- **Problem**: Statement test expected the most recent transaction to appear as the first entry on page 0 (`$.entries.content[0]`), but received the oldest initial deposit.
+- **What was assumed / suggested**: Querying ledger entries with `OrderByCreatedAtAsc` (oldest first).
+- **Why it was wrong**: For user-facing financial statement endpoints and transaction history pagination, customers expect to see their latest activity immediately on the first page (`DESC` ordering), while retaining chronological running balance computation.
+- **What was done**: Added `findByAccountIdOrderByCreatedAtDesc` and `findByAccountIdAndCreatedAtBetweenOrderByCreatedAtDesc` to `LedgerEntryRepository` and updated `StatementService` to return latest-first entries.
+
+---
+
+### 11. System Clearing Account Balance Desynchronization during Trigger Tests
+- **Problem**: The reconciliation endpoint `GET /api/admin/reconciliation` reported `FAILED` with an account mismatch on `SYS_CASH_CLEARING`.
+- **What was assumed / suggested**: In `SchemaAndHealthTest`, a raw SQL query inserted a DEBIT entry for `SYS_CASH_CLEARING` to balance a test CREDIT entry, but did not update the `balance` column on `accounts`.
+- **Why it was wrong**: In LedgerLine, reconciliation compares both the total ledger sum (`SUM(entries) == 0`) AND each account's stored `balance` against `SUM(account_entries)`. Because `SYS_CASH_CLEARING.balance` remained 0 while its ledger entries summed to -1000, reconciliation correctly flagged a ledger-to-account mismatch.
+- **What was done**: Added an `UPDATE accounts SET balance = balance - 1000 WHERE id = 'SYS_CASH_CLEARING'` statement in `SchemaAndHealthTest` to keep the stored balance perfectly synchronized with the appended ledger entry.

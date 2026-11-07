@@ -55,6 +55,9 @@ class LedgerEngineTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private LedgerService ledgerService;
+
     private User alice;
     private User bob;
     private User auditor;
@@ -75,10 +78,18 @@ class LedgerEngineTest {
         bob = userRepository.save(new User("bob_tx_" + suffix, "bob_tx_" + suffix + "@test.com", passwordEncoder.encode("Pass123!"), Role.ACCOUNT_HOLDER));
         auditor = userRepository.save(new User("auditor_tx_" + suffix, "auditor_tx_" + suffix + "@test.com", passwordEncoder.encode("Pass123!"), Role.AUDITOR));
 
-        aliceAccount = accountRepository.save(new Account(alice.getId(), "ACC-A-" + suffix, 50000L, false));
-        bobAccount = accountRepository.save(new Account(bob.getId(), "ACC-B-" + suffix, 20000L, false));
+        aliceAccount = accountRepository.save(new Account(alice.getId(), "ACC-A-" + suffix, 0L, false));
+        bobAccount = accountRepository.save(new Account(bob.getId(), "ACC-B-" + suffix, 0L, false));
+        frozenAccount = accountRepository.save(new Account(alice.getId(), "ACC-F-" + suffix, 0L, false));
 
-        frozenAccount = new Account(alice.getId(), "ACC-F-" + suffix, 10000L, false);
+        User admin = userRepository.save(new User("admin_tx_" + suffix, "admin_tx_" + suffix + "@test.com", passwordEncoder.encode("Pass123!"), Role.ADMIN));
+        com.snovasys.ledgerline.security.UserPrincipal adminPrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(admin.getId(), admin.getUsername(), admin.getEmail(), Role.ADMIN, true);
+        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(50000L, "Seed Alice"), UUID.randomUUID().toString(), adminPrincipal);
+        ledgerService.deposit(bobAccount.getId(), new DepositRequest(20000L, "Seed Bob"), UUID.randomUUID().toString(), adminPrincipal);
+        ledgerService.deposit(frozenAccount.getId(), new DepositRequest(10000L, "Seed Frozen"), UUID.randomUUID().toString(), adminPrincipal);
+
+        frozenAccount = accountRepository.findById(frozenAccount.getId()).orElseThrow();
         frozenAccount.setStatus(AccountStatus.FROZEN);
         frozenAccount = accountRepository.save(frozenAccount);
 

@@ -58,6 +58,9 @@ class IdempotencyTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private com.snovasys.ledgerline.service.LedgerService ledgerService;
+
     private User alice;
     private User bob;
     private Account aliceAccount;
@@ -71,8 +74,14 @@ class IdempotencyTest {
         alice = userRepository.save(new User("alice_idemp_" + suffix, "alice_idemp_" + suffix + "@test.com", passwordEncoder.encode("Pass123!"), Role.ACCOUNT_HOLDER));
         bob = userRepository.save(new User("bob_idemp_" + suffix, "bob_idemp_" + suffix + "@test.com", passwordEncoder.encode("Pass123!"), Role.ACCOUNT_HOLDER));
 
-        aliceAccount = accountRepository.save(new Account(alice.getId(), "ACC-A-" + suffix, 100000L, false));
-        bobAccount = accountRepository.save(new Account(bob.getId(), "ACC-B-" + suffix, 50000L, false));
+        aliceAccount = accountRepository.save(new Account(alice.getId(), "ACC-A-" + suffix, 0L, false));
+        bobAccount = accountRepository.save(new Account(bob.getId(), "ACC-B-" + suffix, 0L, false));
+
+        User admin = userRepository.save(new User("admin_idemp_" + suffix, "admin_idemp_" + suffix + "@test.com", passwordEncoder.encode("Pass123!"), Role.ADMIN));
+        com.snovasys.ledgerline.security.UserPrincipal adminPrincipal =
+                new com.snovasys.ledgerline.security.UserPrincipal(admin.getId(), admin.getUsername(), admin.getEmail(), Role.ADMIN, true);
+        ledgerService.deposit(aliceAccount.getId(), new DepositRequest(100000L, "Seed Alice"), UUID.randomUUID().toString(), adminPrincipal);
+        ledgerService.deposit(bobAccount.getId(), new DepositRequest(50000L, "Seed Bob"), UUID.randomUUID().toString(), adminPrincipal);
 
         aliceToken = jwtService.generateToken(alice.getId(), alice.getUsername(), alice.getEmail(), alice.getRole());
     }

@@ -72,8 +72,8 @@ class AccountAndAdminTest {
         holderBob = userRepository.save(new User("bob_" + suffix, "bob_" + suffix + "@test.com", passwordEncoder.encode("Pass123!"), Role.ACCOUNT_HOLDER));
         auditorUser = userRepository.save(new User("auditor_" + suffix, "auditor_" + suffix + "@test.com", passwordEncoder.encode("Pass123!"), Role.AUDITOR));
 
-        aliceAccount = accountRepository.save(new Account(holderAlice.getId(), "ACC-ALICE-" + suffix, 10000L, false));
-        bobAccount = accountRepository.save(new Account(holderBob.getId(), "ACC-BOB-" + suffix, 20000L, false));
+        aliceAccount = accountRepository.save(new Account(holderAlice.getId(), "ACC-ALICE-" + suffix, 0L, false));
+        bobAccount = accountRepository.save(new Account(holderBob.getId(), "ACC-BOB-" + suffix, 0L, false));
 
         adminToken = jwtService.generateToken(adminUser.getId(), adminUser.getUsername(), adminUser.getEmail(), adminUser.getRole());
         aliceToken = jwtService.generateToken(holderAlice.getId(), holderAlice.getUsername(), holderAlice.getEmail(), holderAlice.getRole());
@@ -156,7 +156,7 @@ class AccountAndAdminTest {
                         .header("Authorization", "Bearer " + aliceToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(aliceAccount.getId().toString()))
-                .andExpect(jsonPath("$.balance").value(10000));
+                .andExpect(jsonPath("$.balance").value(0));
     }
 
     @Test

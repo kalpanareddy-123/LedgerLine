@@ -19,10 +19,14 @@ public class AdminController {
 
     private final AdminService adminService;
     private final AccountService accountService;
+    private final com.snovasys.ledgerline.service.ReconciliationService reconciliationService;
 
-    public AdminController(AdminService adminService, AccountService accountService) {
+    public AdminController(AdminService adminService,
+                           AccountService accountService,
+                           com.snovasys.ledgerline.service.ReconciliationService reconciliationService) {
         this.adminService = adminService;
         this.accountService = accountService;
+        this.reconciliationService = reconciliationService;
     }
 
     @PostMapping("/users")
@@ -48,5 +52,10 @@ public class AdminController {
             @Valid @RequestBody UpdateAccountStatusRequest request) {
         AccountResponse response = accountService.updateAccountStatus(id, request.status());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/reconciliation")
+    public ResponseEntity<ReconciliationResponse> getReconciliation() {
+        return ResponseEntity.ok(reconciliationService.runReconciliation());
     }
 }

@@ -72,6 +72,9 @@ class SchemaAndHealthTest {
         );
         // Maintain double-entry book balance even in trigger test
         jdbcTemplate.update(
+                "UPDATE accounts SET balance = balance - 1000 WHERE id = '00000000-0000-0000-0000-000000000001'::uuid"
+        );
+        jdbcTemplate.update(
                 "INSERT INTO ledger_entries (transaction_id, account_id, direction, amount, balance_after) VALUES (?::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'DEBIT', 1000, -1000)",
                 txId
         );

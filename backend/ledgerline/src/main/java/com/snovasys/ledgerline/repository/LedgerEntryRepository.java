@@ -15,12 +15,19 @@ import java.util.UUID;
 @Repository
 public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, UUID> {
 
+    Page<LedgerEntry> findByAccountIdOrderByCreatedAtDesc(UUID accountId, Pageable pageable);
+
+    Page<LedgerEntry> findByAccountIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+            UUID accountId, Instant from, Instant to, Pageable pageable);
+
     Page<LedgerEntry> findByAccountIdOrderByCreatedAtAsc(UUID accountId, Pageable pageable);
 
     Page<LedgerEntry> findByAccountIdAndCreatedAtBetweenOrderByCreatedAtAsc(
             UUID accountId, Instant from, Instant to, Pageable pageable);
 
     List<LedgerEntry> findByAccountIdOrderByCreatedAtAsc(UUID accountId);
+
+    List<LedgerEntry> findByAccountIdOrderByCreatedAtDesc(UUID accountId);
 
     List<LedgerEntry> findByTransactionId(UUID transactionId);
 
