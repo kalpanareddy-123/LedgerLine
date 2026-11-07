@@ -57,13 +57,13 @@ class SchemaAndHealthTest {
     @Test
     @DisplayName("DB Trigger: ledger_entries is strictly append-only (UPDATE and DELETE fail)")
     void ledgerEntriesAppendOnlyTriggerFailsOnUpdateOrDelete() {
-        // Create user, accounts, and transaction to test ledger_entry triggers
+        String uniqueSuffix = java.util.UUID.randomUUID().toString().substring(0, 8);
         String userId = jdbcTemplate.queryForObject(
-                "INSERT INTO users (username, email, password_hash, role) VALUES ('trg_user', 'trg@test.com', 'hash', 'ACCOUNT_HOLDER') RETURNING id",
+                "INSERT INTO users (username, email, password_hash, role) VALUES ('trg_user_" + uniqueSuffix + "', 'trg_" + uniqueSuffix + "@test.com', 'hash', 'ACCOUNT_HOLDER') RETURNING id",
                 String.class
         );
         String accId = jdbcTemplate.queryForObject(
-                "INSERT INTO accounts (owner_id, account_number, currency, balance, status, is_system) VALUES (?::uuid, 'TRG_ACC', 'INR', 1000, 'ACTIVE', false) RETURNING id",
+                "INSERT INTO accounts (owner_id, account_number, currency, balance, status, is_system) VALUES (?::uuid, 'TRG_ACC_" + uniqueSuffix + "', 'INR', 1000, 'ACTIVE', false) RETURNING id",
                 String.class, userId
         );
         String txId = jdbcTemplate.queryForObject(
