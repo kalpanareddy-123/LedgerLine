@@ -43,6 +43,12 @@ public class OpenApiConfig {
                                         .type(SecurityScheme.Type.HTTP)
                                         .scheme("bearer")
                                         .bearerFormat("JWT")
-                                        .description("Enter your JWT token obtained from `/api/auth/login`.")));
+                                        .description("Enter your JWT token obtained from `/api/auth/login`."))
+                        .addParameters("IdempotencyKey",
+                                new io.swagger.v3.oas.models.parameters.HeaderParameter()
+                                        .name("Idempotency-Key")
+                                        .description("UUIDv4 idempotency key guaranteeing that repeated submissions execute exactly once.")
+                                        .required(true)
+                                        .schema(new io.swagger.v3.oas.models.media.StringSchema().format("uuid"))));
     }
 }

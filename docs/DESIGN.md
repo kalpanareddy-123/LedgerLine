@@ -158,4 +158,90 @@ When an `ACCOUNT_HOLDER` attempts to inspect, deposit, or withdraw from an accou
 The existence of other customers' accounts is completely concealed.
 Only genuine authorization barriers (e.g. an `AUDITOR` attempting to execute a transfer, or an `ACCOUNT_HOLDER` accessing `/api/admin/*`) return `403 ACCESS_DENIED`.
 
+*Code Reference*: [LedgerEngineTest.java:ownershipProtectionOnAllAccountEndpoints](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/test/java/com/snovasys/ledgerline/LedgerEngineTest.java).
+
+---
+
+## 7. Statement-Level TRUNCATE Protection
+
+### The Problem: TRUNCATE Bypasses Row-Level Triggers
+PostgreSQL's `TRUNCATE` is a DDL-level bulk operation that empties a table by unlinking disk pages rather than scanning and deleting rows individually. Row-level triggers (`FOR EACH ROW`) are completely ignored during `TRUNCATE`.
+
+### The Solution: Statement-Level Triggers & Privilege Revocation
+Flyway migration `V2__block_truncate.sql` attaches statement-level triggers to `ledger_entries` and `audit_log`:
+```sql
+CREATE OR REPLACE FUNCTION prevent_truncate()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Table % is append-only. TRUNCATE is strictly prohibited.', TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_ledger_entries_prevent_truncate
+BEFORE TRUNCATE ON ledger_entries
+FOR EACH STATEMENT EXECUTE FUNCTION prevent_truncate();
+
+CREATE TRIGGER trg_audit_log_prevent_truncate
+BEFORE TRUNCATE ON audit_log
+FOR EACH STATEMENT EXECUTE FUNCTION prevent_truncate();
+
+REVOKE TRUNCATE ON ledger_entries FROM PUBLIC;
+REVOKE TRUNCATE ON audit_log FROM PUBLIC;
+```
+Even an operator connecting directly via `psql` executing `TRUNCATE ledger_entries;` will receive an uncatchable PostgreSQL exception `P0001: Table ledger_entries is append-only. TRUNCATE is strictly prohibited.`
+
+---
+
+## 8. Token Architecture & Honest Storage Assessment
+
+### Stateless JWT Bearer Auth
+LedgerLine issues HMAC-SHA256 (HS256) signed JSON Web Tokens upon authentication:
+- Claims: `sub` (username), `userId` (UUID), `role` (`ADMIN`, `AUDITOR`, `ACCOUNT_HOLDER`), `iat`, and `exp`.
+- Filter layer: `JwtAuthenticationFilter` validates token signature and claims statelessly without database hits, preventing DB connection pool starvation during high-concurrency requests.
+
+### Honest Assessment of sessionStorage
+The React frontend stores the JWT in browser `sessionStorage`:
+- **Advantage**: Unlike `localStorage`, `sessionStorage` is tied strictly to the browser tab lifecycle and is immediately purged upon closing the tab, preventing residual tokens on shared computers.
+- **Honest Security Reality**: `sessionStorage` does **NOT** defend against Cross-Site Scripting (XSS). Any malicious script injected into the DOM can execute `sessionStorage.getItem('ledgerline_token')` and exfiltrate the token.
+- **Enterprise Recommendation**: In enterprise banking environments with dedicated domains, authentication should utilize `HttpOnly`, `SameSite=Strict`, `Secure` cookies paired with custom CSRF header validation.
+
+---
+
+## 9. Arithmetic Overflow Protection via Exact Math
+
+### Threat: Long Overflow Wrap-Around
+In Java, 64-bit signed integers wrap around to negative numbers when exceeding `Long.MAX_VALUE`:
+```java
+long val = Long.MAX_VALUE;
+val = val + 1; // Wraps to -9223372036854775808L!
+```
+If an attacker supplied extreme monetary amounts, standard arithmetic could wrap a massive credit into an accidental debit or bypass balance checks.
+
+### The Solution: `Math.addExact` and `Math.subtractExact`
+Every balance calculation in `LedgerService` uses Java's exact math primitives:
+```java
+long newBalance = Math.addExact(account.getBalance(), amount);
+long debitedBalance = Math.subtractExact(account.getBalance(), amount);
+```
+If an arithmetic overflow or underflow occurs, Java immediately throws an `ArithmeticException` which is intercepted by `GlobalExceptionHandler` and mapped to HTTP `400 BAD_REQUEST: Arithmetic overflow in monetary calculation`.
+
+---
+
+## 10. Idempotency Failure Semantics: Key Release on Domain Errors
+
+### The Dilemma: What Happens When a Request Fails?
+Suppose Alice submits a transfer of ₹5,000 with `Idempotency-Key: X`. Her account only has ₹1,000, so the request fails with `422 INSUFFICIENT_FUNDS`.
+- If key `X` was permanently locked, Alice could never retry the transaction after depositing funds without generating a new UUID.
+- If key `X` had no concurrency control, duplicate requests could still race.
+
+### The Solution: Key Release on Business Failure
+1. **Pre-Execution Claim**: When key `X` arrives, it is inserted with status `102 PROCESSING`.
+2. **Success Path**: On successful commit, the status is updated to `200 OK` (or `201`) with the response payload cached for subsequent identical replays.
+3. **Business Error Path**: If a domain exception (`InsufficientFundsException`, `ValidationException`) is thrown:
+   ```java
+   idempotencyRepository.deleteByUserIdAndKey(userId, key);
+   ```
+   The key is immediately deleted from `idempotency_keys`. Once Alice deposits funds, she or the automated client can safely re-submit with the exact same `Idempotency-Key` and succeed.
+
+
 *Code Reference*: [AccountService.java:getAccountWithOwnershipCheck](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/AccountService.java#L80-L95).
