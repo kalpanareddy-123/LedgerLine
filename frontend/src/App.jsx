@@ -8,6 +8,13 @@ import Statement from './pages/Statement';
 import Admin from './pages/Admin';
 import Auditor from './pages/Auditor';
 
+/**
+ * Role-Aware Route Guard
+ * NOTE: Client-side role checking provides navigation guidance and UI filtering only.
+ * The true, authoritative authorization boundary is enforced strictly server-side
+ * via Spring Security `@PreAuthorize("hasRole('ADMIN')")`, JWT claims validation,
+ * and service-layer separation of duties.
+ */
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, role } = useAuth();
 

@@ -1012,3 +1012,112 @@ body {
   align-items: center;
   gap: 1rem;
 }
+
+/* ==========================================================================
+   Responsive Design & Mobile Breakpoints (Down to 360px viewport width)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1.25rem 1rem;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .page-header .header-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .navbar {
+    padding: 0.75rem 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .nav-links {
+    width: 100%;
+    justify-content: space-around;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 1rem 0.75rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .modal-card {
+    width: 95%;
+    max-width: 400px;
+    padding: 1.25rem 1rem;
+    margin: 1rem auto;
+  }
+
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+  }
+
+  table {
+    min-width: 520px;
+  }
+
+  .login-card {
+    padding: 1.5rem 1rem;
+    width: 100%;
+  }
+
+  .login-presets {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+}
+
+/* Extra small devices (360px and smaller) */
+@media (max-width: 380px) {
+  :root {
+    font-size: 14px;
+  }
+
+  .main-content {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  .balance-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .idemp-key {
+    font-size: 0.65rem;
+    word-break: break-all;
+  }
+}
+

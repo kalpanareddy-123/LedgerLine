@@ -16,18 +16,37 @@ export default function MoneyModal({ type, account, accounts = [], onClose, onSu
   const currentAcc = accounts.find((a) => a.id === selectedAccountId) || account;
 
   useEffect(() => {
-    // Generate fresh idempotency key when opening modal
+    // Generate fresh idempotency key when opening modal or changing transaction type
     setIdempotencyKey(generateUUID());
     setError(null);
     setSuccessMsg(null);
   }, [type]);
+
+  /**
+   * Whenever amount is edited, generate a NEW idempotency key.
+   * On submission failure or network error, the key is KEPT so retry is safe and idempotent.
+   */
+  function handleAmountChange(e) {
+    const val = e.target.value;
+    setAmountRupees(val);
+    setError(null);
+    // Requirement: new key after editing amount
+    setIdempotencyKey(generateUUID());
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
 
-    const paise = rupeesToPaise(amountRupees);
+    let paise = 0;
+    try {
+      paise = rupeesToPaise(amountRupees);
+    } catch (valErr) {
+      setError(valErr.message);
+      return;
+    }
+
     if (!paise || paise <= 0) {
       setError('Please enter a valid amount greater than ₹0.00');
       return;
@@ -80,13 +99,16 @@ export default function MoneyModal({ type, account, accounts = [], onClose, onSu
       });
 
       setSuccessMsg(`Transaction completed! Ref: ${result.reference || result.id}`);
+      // Requirement: new key after success
+      setIdempotencyKey(generateUUID());
+
       // Refresh parent after short delay
       setTimeout(() => {
         onSuccess();
         onClose();
       }, 1000);
     } catch (err) {
-      // NOTE: On failure we KEEP the same idempotencyKey so any immediate retry is safe and idempotent!
+      // NOTE: On failure / network error, we KEEP the same idempotencyKey so retrying the submission is safe & idempotent!
       setError(err.message || 'Operation failed. You can safely retry.');
     } finally {
       setSubmitting(false);
@@ -176,19 +198,25 @@ export default function MoneyModal({ type, account, accounts = [], onClose, onSu
             <div className="input-rupee-wrapper">
               <span className="rupee-symbol">₹</span>
               <input
-                type="number"
-                step="0.01"
-                min="0.01"
+                type="text"
+                inputMode="decimal"
                 placeholder="0.00"
                 value={amountRupees}
-                onChange={(e) => setAmountRupees(e.target.value)}
+                onChange={handleAmountChange}
                 disabled={submitting}
                 required
               />
             </div>
             {amountRupees && (
               <span className="paise-hint">
-                = {rupeesToPaise(amountRupees).toLocaleString()} paise (minor units stored)
+                {(() => {
+                  try {
+                    const p = rupeesToPaise(amountRupees);
+                    return `= ${p.toLocaleString()} paise (minor units stored)`;
+                  } catch (err) {
+                    return `⚠️ ${err.message}`;
+                  }
+                })()}
               </span>
             )}
           </div>
@@ -221,7 +249,7 @@ export default function MoneyModal({ type, account, accounts = [], onClose, onSu
             </div>
             <code className="mono idemp-key">{idempotencyKey}</code>
             <p className="idemp-info">
-              Guarantees this transaction executes exactly once. On retry, the identical key is re-sent.
+              Guarantees this transaction executes exactly once. On retry after network failure, the identical key is sent.
             </p>
           </div>
 
