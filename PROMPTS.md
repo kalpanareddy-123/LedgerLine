@@ -39,3 +39,11 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 - **What was done**: Initialized the database role `ledgerline_app` with explicit password authentication, granted all privileges on `ledgerline_db` and its `public` schema, and wired connection credentials cleanly through environment variables (`DB_USER`, `DB_PASSWORD`, `DB_URL`).
 
 ---
+
+### 5. Unbalanced Test Ledger Entries in Double-Entry System with Append-Only Triggers
+- **Problem**: In `SchemaAndHealthTest`, a raw SQL insert tested the append-only trigger by inserting a single `CREDIT` row without a counterparty `DEBIT`. Subsequent double-entry conservation tests failed because the total ledger sum (`calculateTotalLedgerSum()`) was +4000 instead of 0.
+- **What was assumed / suggested**: Inserting ad-hoc ledger entries in trigger tests without counterparties.
+- **Why it was wrong**: In a double-entry ledger enforced by database append-only triggers, individual rows cannot be rolled back or deleted. An unbalanced test insert permanently corrupts the global book balance (`SUM(CREDIT) - SUM(DEBIT) != 0`).
+- **What was done**: Updated `SchemaAndHealthTest` to always insert balanced pairs (+1000 credit on test account and -1000 debit on `SYS_CASH_CLEARING`), ensuring the invariant `total ledger sum = 0` is strictly preserved across all test suites.
+
+---

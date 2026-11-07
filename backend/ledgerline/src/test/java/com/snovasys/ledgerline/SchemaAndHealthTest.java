@@ -70,6 +70,11 @@ class SchemaAndHealthTest {
                 "INSERT INTO transactions (type, status, amount, currency, destination_account_id) VALUES ('DEPOSIT', 'COMPLETED', 1000, 'INR', ?::uuid) RETURNING id",
                 String.class, accId
         );
+        // Maintain double-entry book balance even in trigger test
+        jdbcTemplate.update(
+                "INSERT INTO ledger_entries (transaction_id, account_id, direction, amount, balance_after) VALUES (?::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'DEBIT', 1000, -1000)",
+                txId
+        );
         String entryId = jdbcTemplate.queryForObject(
                 "INSERT INTO ledger_entries (transaction_id, account_id, direction, amount, balance_after) VALUES (?::uuid, ?::uuid, 'CREDIT', 1000, 1000) RETURNING id",
                 String.class, txId, accId
