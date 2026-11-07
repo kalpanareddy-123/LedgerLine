@@ -30,6 +30,16 @@ public class UserPrincipal implements UserDetails {
         this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }
 
+    public UserPrincipal(UUID id, String username, String email, Role role, boolean enabled) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.password = "";
+        this.role = role;
+        this.enabled = enabled;
+        this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+    }
+
     public UUID getId() {
         return id;
     }

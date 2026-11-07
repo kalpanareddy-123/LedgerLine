@@ -47,3 +47,19 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 - **What was done**: Updated `SchemaAndHealthTest` to always insert balanced pairs (+1000 credit on test account and -1000 debit on `SYS_CASH_CLEARING`), ensuring the invariant `total ledger sum = 0` is strictly preserved across all test suites.
 
 ---
+
+### 6. Concurrency Race in Post-Execution Idempotency Storage
+- **Problem**: When 20 simultaneous threads submitted the same `Idempotency-Key` concurrently, the account was debited multiple times (balance fell to 5,000 instead of 95,000).
+- **What was assumed / suggested**: Checking for an existing idempotency record before running the transaction, executing the ledger movement, and then writing the idempotency record afterwards.
+- **Why it was wrong**: Under high concurrency, all 20 threads simultaneously executed the check before any of them had committed the record. Each thread proceeded to lock accounts sequentially and move funds, resulting in 19 duplicate executions before the unique constraint was encountered.
+- **What was done**: Implemented an atomic pre-execution claim using PostgreSQL `INSERT INTO idempotency_keys (...) VALUES (...) ON CONFLICT (user_id, key) DO NOTHING RETURNING id`. Exactly one thread wins the execution claim; all concurrent threads await the winner's result and receive the replayed response with `Idempotent-Replay: true`.
+
+---
+
+### 7. OpenEntityManagerInView Connection Pool Starvation during Concurrency Tests
+- **Problem**: When testing 20 concurrent threads on idempotent endpoints, threads timed out waiting for the primary future to complete.
+- **What was assumed / suggested**: Relying on default Spring Boot JPA settings with `spring.jpa.open-in-view: true` and loading user details from DB in `JwtAuthenticationFilter`.
+- **Why it was wrong**: With `open-in-view` enabled, every incoming request acquires a database connection from HikariCP for the entire lifecycle of the HTTP request. When 20 threads hit simultaneously and 19 waited on the idempotency barrier, all 20 connections in the pool were held by the waiting threads. The primary executing thread became starved of a DB connection, resulting in a thread/connection deadlock.
+- **What was done**: Disabled `spring.jpa.open-in-view: false`, increased pool size to 30, and made `JwtAuthenticationFilter` completely stateless by constructing `UserPrincipal` directly from verified JWT claims rather than querying the database per request.
+
+---

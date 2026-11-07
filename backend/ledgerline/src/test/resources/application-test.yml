@@ -4,7 +4,12 @@ spring:
     username: ${TEST_DB_USER:ledgerline_app}
     password: ${TEST_DB_PASSWORD:ledgerline_secret}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 5
+      connection-timeout: 20000
   jpa:
+    open-in-view: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
