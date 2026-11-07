@@ -110,3 +110,12 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 - **Why it was wrong**: When an exception was thrown inside a `@Transactional` service, Spring marked the active transaction as `rollback-only`. When `GlobalExceptionHandler` caught the exception and invoked `auditService.record(...)`, Spring's transaction interceptor joined the rollback-only transaction. Exiting `record(...)` caused Spring to throw `UnexpectedRollbackException: Transaction silently rolled back because it has been marked as rollback-only`, crashing the exception handler.
 - **What was done**: Rewrote `AuditService` to use direct `JdbcTemplate` autocommit executions without `@Transactional`, allowing audit logging of both successful and failed attempts without coupling to Hibernate transaction state or causing rollback exceptions.
 
+---
+
+### 14. Status Code Mismatch on Insufficient Funds Test Assertion (422 vs 400)
+- **Problem**: In `ConcurrencyAndConservationTest.fiftyParallelWithdrawalsLimitedFunds`, the count of insufficient funds failures was recorded as 0 instead of 30.
+- **What was assumed / suggested**: Asserting that rejected withdrawal responses returned HTTP 400 Bad Request.
+- **Why it was wrong**: In the domain model, insufficient funds represents a semantically valid request syntax that cannot be processed due to business domain constraints, which `InsufficientFundsException` correctly maps to HTTP 422 `UNPROCESSABLE_ENTITY`. The test assertion strictly checked `status == 400`.
+- **What was done**: Updated the test assertions to accept HTTP 422 `UNPROCESSABLE_ENTITY` (or 400) when verifying `INSUFFICIENT_FUNDS` rejection payloads.
+
+
