@@ -8,7 +8,7 @@
 
 ## 1. Project Links
 
-- **GitHub Repository**: [REPO_URL] *(Maintained private during development; set to public or invited evaluators at deadline)*
+- **GitHub Repository**: https://github.com/kalpanareddy-123/LedgerLine *(Maintained private during development; set to public or invited evaluators at deadline)*
 - **Live Web Application**: [FRONTEND_URL] *(e.g. `https://ledgerline-frontend.vercel.app`)*
 - **Interactive Swagger API Documentation**: [BACKEND_URL]/swagger-ui.html *(e.g. `https://ledgerline-backend.onrender.com/swagger-ui.html`)*
 - **Core Health Endpoint**: [BACKEND_URL]/api/health
