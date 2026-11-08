@@ -158,6 +158,26 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 - **Why it was wrong**: The initial database migration `V1__init_schema.sql` has a strict table constraint `CONSTRAINT chk_account_currency CHECK (currency = 'INR')`, preventing non-INR accounts from being persisted at all.
 - **What was done**: Added explicit domain validation in `LedgerService.transfer` checking that source and destination currencies match and are supported, and tested that raw SQL inserts of unsupported currencies are rejected by the database constraint `chk_account_currency`.
 
+---
 
+### 20. Local Docker CLI Not Available & Zero-Docker Maven Deployment
+- **Problem**: Docker CLI was not installed on the developer machine, preventing local execution of `docker compose config` and `docker build`.
+- **What was assumed / suggested**: Relying exclusively on Docker containers for deployment.
+- **Why it was wrong**: Assuming Docker is universally installed on developer machines or evaluation environments blocks candidates and evaluators without Docker Desktop from building and running.
+- **What was done**: Added a native Java/Maven deployment pathway for Render (`./mvnw clean package -DskipTests` and `java -jar target/ledgerline-0.0.1-SNAPSHOT.jar`), eliminating Docker dependency while preserving the Dockerfile for containerized environments.
 
+---
 
+### 21. Secrets Scan Scope Limitations & Distinguishing Dev Defaults from Cloud Secrets
+- **Problem**: An initial regex secrets scan claimed "clean" because it checked specific patterns, but early development commits contained default strings (`ledgerline_secret`, initial mock JWT secret), and local terminal test commands used `DB_PASSWORD=secret`.
+- **What was assumed / suggested**: Declaring the repository completely free of secrets based on regex scans alone.
+- **Why it was wrong**: Regex scans do not recognize domain-specific dev passwords or early placeholder commits. Developers might mistakenly assume dev defaults are acceptable for production.
+- **What was done**: Documented that all historical defaults (`ledgerline_secret`, local test tokens) must be treated strictly as **DEV-ONLY**. Instructed in `DEPLOY.md` and `README.md` that production cloud deployments must generate brand-new, cryptographically random keys via `openssl rand -base64 48` and never reuse dev defaults.
+
+---
+
+### 22. Two-Way CORS Handshake Between Render Backend and Vercel Frontend
+- **Problem**: When deploying backend and frontend on separate cloud providers (Render and Vercel), initial backend deployments only permit localhost origins (`http://localhost:3000,http://localhost:5173`).
+- **What was assumed / suggested**: Assuming the frontend would connect to the backend without explicit origin synchronization.
+- **Why it was wrong**: Browsers strictly enforce the Same-Origin Policy. When the Vercel SPA sends `POST /api/auth/login` to Render, the browser blocks the preflight request, causing login to fail with `Network Error`.
+- **What was done**: Added a prominent warning in `DEPLOY.md` detailing Step 5: immediately after Vercel assigns the live frontend domain, update `CORS_ALLOWED_ORIGINS` in Render and wait for the zero-downtime redeploy before testing.

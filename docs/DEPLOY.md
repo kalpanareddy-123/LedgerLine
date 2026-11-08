@@ -79,8 +79,14 @@
    - **Region**: Same region as your database.
    - **Branch**: `main`
    - **Root Directory**: `backend/ledgerline`  <-- *CRITICAL*
-   - **Runtime**: `Docker`
-   - **Dockerfile Path**: `Dockerfile`
+   - **Deployment Mode**: Choose either **Native Java** (Recommended, zero Docker needed) or **Docker**:
+     - **Option 1: Native Java (No Docker needed)**:
+       - Environment: `Java`
+       - Build Command: `./mvnw clean package -DskipTests`
+       - Start Command: `java -XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -Dserver.port=$PORT -jar target/ledgerline-0.0.1-SNAPSHOT.jar`
+     - **Option 2: Docker**:
+       - Environment: `Docker`
+       - Dockerfile Path: `Dockerfile`
    - **Instance Type**: `Free`
 5. Click **Advanced** > **Add Environment Variable**:
 
@@ -90,10 +96,10 @@
 | `DB_URL` | Neon JDBC URL with sslmode=require | `jdbc:postgresql://ep-xyz.neon.tech/neondb?sslmode=require` |
 | `DB_USER` | Neon Database user | `neondb_owner` |
 | `DB_PASSWORD` | Neon Database password | `[YOUR_NEON_PASSWORD]` |
-| `JWT_SECRET` | Generate via `openssl rand -base64 48` | `48+ random base64 characters` |
+| `JWT_SECRET` | Generate fresh via `openssl rand -base64 48` | `48+ random base64 characters (NEVER reuse local dev keys!)` |
 | `JWT_EXPIRATION_MINUTES`| Token validity | `30` |
 | `CORS_ALLOWED_ORIGINS` | Temporary until frontend deployed | `http://localhost:3000,http://localhost:5173` |
-| `DEMO_SEED` | Seed demo accounts on startup | `true` |
+| `DEMO_SEED` | Seed demo accounts on startup | `true` (Required so evaluators can log in!) |
 | `MAX_TRANSACTION_AMOUNT`| Server-side upper limit | `10000000` |
 
 > **JWT Secret Generation Command**:
@@ -101,10 +107,10 @@
 > ```bash
 > openssl rand -base64 48
 > ```
-> Copy the output directly into the `JWT_SECRET` field.
+> Copy the output directly into the `JWT_SECRET` field. Never use default or local test secrets in cloud deployments.
 
 6. Click **Create Web Service**.
-7. Render will pull the repo, build the Docker image, run Flyway migrations (`V1__init_schema.sql` and `V2__block_truncate.sql`), seed the initial demo data, and start the application.
+7. Render will pull the repo, build the application, run Flyway migrations (`V1__init_schema.sql` and `V2__block_truncate.sql`), seed the initial demo data, and start the application.
 8. When deployment finishes, copy your Render URL:
    `https://ledgerline-backend-xxxx.onrender.com`
 9. Verify health check:
@@ -137,13 +143,19 @@
 
 ## Step 5: Complete the 2-Way CORS Handshake
 
-To prevent browser CORS rejection when the frontend communicates with the backend:
+> [!WARNING]
+> **#1 MOST COMMON DEPLOYMENT FAILURE: Browser CORS Rejection**  
+> During Step 3, the backend was configured with localhost origins. **Your live Vercel frontend will fail on login** (`Network Error` / `CORS header missing`) until you update this setting.
+> You MUST perform this step immediately after Vercel gives you your frontend domain!
+
+To enable the frontend to communicate with the backend:
 1. Return to [render.com](https://render.com) > your backend service > **Environment**.
-2. Update `CORS_ALLOWED_ORIGINS` to include your live Vercel URL:
+2. Update `CORS_ALLOWED_ORIGINS` to include your exact live Vercel URL (with NO trailing slash):
    ```text
    https://ledgerline-frontend-xxxx.vercel.app,http://localhost:3000,http://localhost:5173
    ```
 3. Click **Save Changes**. Render will automatically trigger a zero-downtime redeploy.
+4. Verify by opening the Vercel site, inspecting DevTools > Network tab, and confirming the `POST /api/auth/login` preflight OPTIONS request returns HTTP 204 with `Access-Control-Allow-Origin: https://ledgerline-frontend-xxxx.vercel.app`.
 
 ---
 
@@ -175,9 +187,11 @@ scripts\smoke-test.bat https://ledgerline-backend-xxxx.onrender.com
 ## Step 7: Final Demo Check Before Evaluation
 
 1. Open your live Vercel frontend in an **Incognito / Private Window**.
-2. Log in with demo accounts:
-   - Customer: `alice` / `AlicePassword123!`
-   - Admin: `admin` / `AdminPassword123!`
+2. Log in with demo accounts (**DEMO-ONLY**):
+   - Customer Alice: `alice` / `AlicePass123!`
+   - Customer Bob: `bob` / `BobPass123!`
+   - System Admin: `admin` / `AdminPass123!`
+   - Compliance Auditor: `auditor` / `AuditorPass123!`
    - Auditor: `auditor` / `AuditorPassword123!`
 3. Execute a live deposit and transfer. Confirm that:
    - Account balances update immediately.
