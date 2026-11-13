@@ -224,7 +224,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./mvnw test
 8. **Append-Only Database Triggers**: Raw SQL `UPDATE`, `DELETE`, and `TRUNCATE` on `ledger_entries` or `audit_log` fail at PostgreSQL storage engine level.
 9. **Accounting Reconciliation**: Corrupting a balance directly via SQL flags `status: FAILED` with exact discrepancy; restoring balance flags `status: OK`.
 
-*See [docs/TESTING.md](file:///Users/harsha/Desktop/kalpana/docs/TESTING.md) for full Windows CMD execution steps and test class details.*
+*See [docs/TESTING.md](docs/TESTING.md) for full Windows CMD execution steps and test class details.*
 
 ---
 

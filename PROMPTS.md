@@ -35,7 +35,7 @@ This document logs mistakes, wrong assumptions, build errors, and design correct
 ### 4. PostgreSQL Authentication Failure
 - **Problem**: Connecting to `ledgerline_db` failed with password authentication error for the application user.
 - **What was assumed / suggested**: Default local peer authentication or assuming a pre-existing `ledgerline_app` user with a hardcoded password.
-- **Why it was wrong**: PostgreSQL on macOS via Homebrew initializes with role matching the OS user (`harsha`) and trust/peer auth, without `ledgerline_app` or specific passwords configured.
+- **Why it was wrong**: PostgreSQL on macOS via Homebrew initializes with role matching the host system login and trust/peer auth, without `ledgerline_app` or specific passwords configured.
 - **What was done**: Initialized the database role `ledgerline_app` with explicit password authentication, granted all privileges on `ledgerline_db` and its `public` schema, and wired connection credentials cleanly through environment variables (`DB_USER`, `DB_PASSWORD`, `DB_URL`).
 
 ---

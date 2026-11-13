@@ -21,7 +21,7 @@ Over millions of transactions, binary rounding errors cause books to fall out of
 - Eliminates rounding drift, truncation anomalies, and floating-point comparison bugs.
 - Fixed currency constraint in database: `currency VARCHAR(3) CHECK (currency = 'INR')`.
 
-*Code Reference*: [V1__init_schema.sql](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/resources/db/migration/V1__init_schema.sql), [Account.java](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/domain/Account.java).
+*Code Reference*: [V1__init_schema.sql](../backend/ledgerline/src/main/resources/db/migration/V1__init_schema.sql), [Account.java](../backend/ledgerline/src/main/java/com/snovasys/ledgerline/domain/Account.java).
 
 ---
 
@@ -48,7 +48,7 @@ External cash deposits and withdrawals have an external counterparty. To preserv
   CONSTRAINT chk_account_balance CHECK (is_system = true OR balance >= 0)
   ```
 
-*Code Reference*: [LedgerService.java](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/LedgerService.java), [ReconciliationService.java](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/ReconciliationService.java).
+*Code Reference*: [LedgerService.java](../backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/LedgerService.java), [ReconciliationService.java](../backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/ReconciliationService.java).
 
 ---
 
@@ -76,7 +76,7 @@ Because all threads worldwide acquire locks in the exact same ordinal order, a c
 2. **Layer 2 (Database Constraint)**: PostgreSQL engine check constraint `balance >= 0`. Even if application code had a bug, the database rejects any statement that would cause an overdraft.
 3. **Safety Net**: Optimistic locking `@Version` column on `Account` guards against out-of-band updates.
 
-*Code Reference*: [LedgerService.java:lockAccountsInOrder](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/LedgerService.java#L280-L315), [AccountRepository.java:findByIdForUpdate](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/repository/AccountRepository.java#L20-L24).
+*Code Reference*: [LedgerService.java:lockAccountsInOrder](../backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/LedgerService.java), [AccountRepository.java:findByIdForUpdate](../backend/ledgerline/src/main/java/com/snovasys/ledgerline/repository/AccountRepository.java).
 
 ---
 
@@ -104,7 +104,7 @@ LedgerLine implements a **3-stage atomic protocol**:
    - Same key + different payload hash: Rejects immediately with **422 IDEMPOTENCY_PAYLOAD_MISMATCH**.
    - If the first execution fails due to a domain error (e.g. insufficient funds or validation failure), the key is deleted from `idempotency_keys` so the user can safely retry once funded.
 
-*Code Reference*: [IdempotencyService.java](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/IdempotencyService.java).
+*Code Reference*: [IdempotencyService.java](../backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/IdempotencyService.java).
 
 ---
 
@@ -134,7 +134,7 @@ FOR EACH ROW EXECUTE FUNCTION prevent_update_or_delete();
 ```
 Corrections must always be made by recording new reversing transactions, never by altering historical entries.
 
-*Code Reference*: [V1__init_schema.sql](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/resources/db/migration/V1__init_schema.sql#L85-L105).
+*Code Reference*: [V1__init_schema.sql](../backend/ledgerline/src/main/resources/db/migration/V1__init_schema.sql).
 
 ---
 
@@ -158,7 +158,7 @@ When an `ACCOUNT_HOLDER` attempts to inspect, deposit, or withdraw from an accou
 The existence of other customers' accounts is completely concealed.
 Only genuine authorization barriers (e.g. an `AUDITOR` attempting to execute a transfer, or an `ACCOUNT_HOLDER` accessing `/api/admin/*`) return `403 ACCESS_DENIED`.
 
-*Code Reference*: [LedgerEngineTest.java:ownershipProtectionOnAllAccountEndpoints](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/test/java/com/snovasys/ledgerline/LedgerEngineTest.java).
+*Code Reference*: [LedgerEngineTest.java:ownershipProtectionOnAllAccountEndpoints](../backend/ledgerline/src/test/java/com/snovasys/ledgerline/LedgerEngineTest.java).
 
 ---
 
@@ -244,4 +244,4 @@ Suppose Alice submits a transfer of ₹5,000 with `Idempotency-Key: X`. Her acco
    The key is immediately deleted from `idempotency_keys`. Once Alice deposits funds, she or the automated client can safely re-submit with the exact same `Idempotency-Key` and succeed.
 
 
-*Code Reference*: [AccountService.java:getAccountWithOwnershipCheck](file:///Users/harsha/Desktop/kalpana/backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/AccountService.java#L80-L95).
+*Code Reference*: [AccountService.java:getAccountWithOwnershipCheck](../backend/ledgerline/src/main/java/com/snovasys/ledgerline/service/AccountService.java).
